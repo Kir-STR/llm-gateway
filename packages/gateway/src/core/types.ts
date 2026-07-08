@@ -46,6 +46,14 @@ export type LlmResponse = {
 };
 
 export interface LlmCaller {
+  /**
+   * Single, thin call to the provider. The adapter MUST enforce its own
+   * call-duration timeout and report a timeout as an `LlmCallError` with
+   * `code: 'timeout'` (`retryable: false`). The core classifies errors and
+   * does not retry timeouts, but does not impose an LLM-call timeout itself.
+   * `signal` is reserved for future core-managed abort (a stage-2 enhancement
+   * landing with the real provider adapter).
+   */
   call(req: LlmRequest, signal?: AbortSignal): Promise<LlmResponse>;
 }
 

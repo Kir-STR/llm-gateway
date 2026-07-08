@@ -33,6 +33,11 @@ const llm: LlmCaller = {
   },
 };
 
+// The core does not impose an LLM-call timeout in this version. The adapter must enforce
+// its own timeout on the provider call and surface it as an `LlmCallError` with
+// `code: 'timeout'` (`retryable: false`). `signal` is reserved for a future core-managed
+// abort (stage 2).
+
 const gateway = createGateway(config, {
   llm,
   telemetry: createJsonlSink('./telemetry'),

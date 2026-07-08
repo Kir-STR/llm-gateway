@@ -3,7 +3,7 @@ import { createGateway } from '../src/index.js';
 import { LlmCallError } from '../src/core/types.js';
 import { neutralConfig } from './fixtures/config.js';
 import { createFakeLlm } from './fixtures/fake-llm.js';
-import type { LlmResponse, TelemetrySink } from '../src/core/types.js';
+import type { GatewayDeps, LlmResponse, TelemetrySink } from '../src/core/types.js';
 
 const ok: LlmResponse = {
   text: 'hi',
@@ -235,6 +235,20 @@ describe('gateway orchestration', () => {
     ];
     expect(() =>
       createGateway(cfg, { llm: { call: async () => ok }, telemetry: nullSink }),
+    ).toThrow();
+  });
+
+  it('throws at init when deps.llm is missing', () => {
+    expect(() =>
+      createGateway(neutralConfig, { telemetry: nullSink } as unknown as GatewayDeps),
+    ).toThrow();
+  });
+
+  it('throws at init when deps.telemetry is missing', () => {
+    expect(() =>
+      createGateway(neutralConfig, {
+        llm: createFakeLlm([ok]).caller,
+      } as unknown as GatewayDeps),
     ).toThrow();
   });
 

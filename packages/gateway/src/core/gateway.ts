@@ -138,8 +138,20 @@ function assertReferentialIntegrity(config: GatewayConfig, deps: GatewayDeps): v
   }
 }
 
+// Required dependencies must be validated at init — a missing deps.llm/deps.telemetry must
+// throw here, not surface later as a mislabeled per-turn failure or be silently swallowed.
+function assertDeps(deps: GatewayDeps): void {
+  if (typeof deps?.llm?.call !== 'function') {
+    throw new ConfigError('deps.llm.call must be a function (LlmCaller)');
+  }
+  if (typeof deps?.telemetry?.event !== 'function') {
+    throw new ConfigError('deps.telemetry.event must be a function (TelemetrySink)');
+  }
+}
+
 export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway {
   validateConfig(config);
+  assertDeps(deps);
   assertReferentialIntegrity(config, deps);
 
   const store = deps.limitsStore ?? createMemoryLimitsStore();
