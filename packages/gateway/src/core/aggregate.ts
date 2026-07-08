@@ -22,8 +22,8 @@ export function aggregateInput(results: InputGuardResult[]): InputAggregate {
     .map((r) => (r.verdict.code === 'E_GUARD_ERROR' ? 'guard_error' : r.name));
   const out: InputAggregate = { decision: 'pass', flags };
   const routed = results.find((r) => r.verdict.route !== undefined);
-  if (routed) out.forcedRoute = routed.verdict.route;
+  if (routed?.verdict.route !== undefined) out.forcedRoute = routed.verdict.route;
   const transformed = results.find((r) => r.verdict.transform !== undefined);
-  if (transformed) out.transform = transformed.verdict.transform;
+  if (transformed?.verdict.transform !== undefined) out.transform = transformed.verdict.transform;
   return out;
 }
