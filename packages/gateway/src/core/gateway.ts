@@ -7,6 +7,7 @@ import type {
   DailyState,
   LlmRequest,
   LlmResponse,
+  ScenarioResult,
 } from './types.js';
 import { LlmCallError } from './types.js';
 import type { GatewayConfig, GuardConfig, ScenarioConfig } from './config-schema.js';
@@ -117,6 +118,23 @@ function assertReferentialIntegrity(config: GatewayConfig, deps: GatewayDeps): v
         models.has(r.escalate_to_model),
         `retry escalate_to_model "${r.escalate_to_model}" is not a known model tier`,
       );
+  }
+
+  // Every model tier reachable by an llm scenario or a retry escalation must have a price entry,
+  // else actualCostUsd/worstCaseCostUsd throw mid-call (after the call is billed) instead of at init.
+  const usedTiers = new Set<string>();
+  for (const sc of Object.values(config.scenarios)) {
+    if (sc.kind === 'llm') usedTiers.add(sc.model);
+  }
+  for (const r of config.retry ?? []) {
+    if (r.escalate_to_model) usedTiers.add(r.escalate_to_model);
+  }
+  for (const tierKey of usedTiers) {
+    const modelName = config.models[tierKey]?.model;
+    need(
+      !!modelName && !!config.limits?.prices?.[modelName],
+      `limits.prices must include an entry for model "${modelName}" (tier "${tierKey}") used by an llm scenario or retry escalation`,
+    );
   }
 }
 
@@ -313,7 +331,12 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
     if (scenario.kind === 'custom') {
       const handler = deps.customScenarios?.[scenario.handler];
       if (!handler) return stub('degrade', 'failed', route.scenario, agg.flags); // validated at init; defensive, non-throwing
-      const res = await handler(ctx);
+      let res: ScenarioResult;
+      try {
+        res = await handler(ctx);
+      } catch {
+        return stub('llm_fail', 'failed', route.scenario, agg.flags, 'upstream_unavailable');
+      }
       ctx.output = { text: res.text, structured: res.structured };
       return await outputStage(ctx, route.scenario, 'custom', agg.flags);
     }

@@ -1,5 +1,6 @@
 import type { Guard, Verdict } from '../core/types.js';
 import type { GuardConfig, PolicyRule } from '../core/config-schema.js';
+import { ConfigError } from '../core/config-schema.js';
 import { Ajv } from 'ajv';
 
 const ajv = new Ajv({ allErrors: true, strict: false });
@@ -15,8 +16,17 @@ function compileRegex(pattern: string): RegExp {
 export function createPolicyGuard(cfg: GuardConfig): Guard {
   const rules = (cfg.rules as PolicyRule[] | undefined) ?? [];
   const validators = new Map<string, ReturnType<typeof ajv.compile>>();
+  const regexes = new Map<string, RegExp>();
   for (const r of rules) {
     if (r.kind === 'json_schema') validators.set(r.id, ajv.compile(r.schema));
+    else if (r.kind === 'regex_deny' || r.kind === 'regex_require') {
+      // Fail loud at init: an invalid pattern must not surface as a per-turn error.
+      try {
+        regexes.set(r.id, compileRegex(r.pattern));
+      } catch {
+        throw new ConfigError(`policy rule "${r.id}" pattern is not a valid regex`);
+      }
+    }
   }
   return {
     name: cfg.name,
@@ -29,8 +39,8 @@ export function createPolicyGuard(cfg: GuardConfig): Guard {
       const violated: { id: string; severity: 'hard' | 'soft' }[] = [];
       for (const r of rules) {
         let bad = false;
-        if (r.kind === 'regex_deny') bad = compileRegex(r.pattern).test(text);
-        else if (r.kind === 'regex_require') bad = !compileRegex(r.pattern).test(text);
+        if (r.kind === 'regex_deny') bad = regexes.get(r.id)!.test(text);
+        else if (r.kind === 'regex_require') bad = !regexes.get(r.id)!.test(text);
         else bad = !validators.get(r.id)!(structured);
         if (bad) violated.push({ id: r.id, severity: r.severity });
       }

@@ -215,4 +215,56 @@ describe('gateway orchestration', () => {
       createGateway(cfg, { llm: { call: async () => ok }, telemetry: nullSink }),
     ).toThrow();
   });
+
+  it('throws at init when an llm-scenario model has no price', () => {
+    const cfg = clone();
+    delete (cfg.limits!.prices as Record<string, unknown>)['model-expensive'];
+    expect(() =>
+      createGateway(cfg, { llm: { call: async () => ok }, telemetry: nullSink }),
+    ).toThrow();
+  });
+
+  it('throws at init on an invalid policy regex', () => {
+    const cfg = clone();
+    cfg.guards!.output = [
+      {
+        name: 'policy',
+        on_error: 'degrade',
+        rules: [{ id: 'bad', kind: 'regex_deny', pattern: '(', severity: 'hard' }],
+      },
+    ];
+    expect(() =>
+      createGateway(cfg, { llm: { call: async () => ok }, telemetry: nullSink }),
+    ).toThrow();
+  });
+
+  it('delivers a custom scenario', async () => {
+    const cfg = clone();
+    cfg.scenarios.main = { kind: 'custom', handler: 'echo' };
+    const { caller } = createFakeLlm([ok]);
+    const gw = createGateway(cfg, {
+      llm: caller,
+      telemetry: nullSink,
+      customScenarios: { echo: async () => ({ text: 'custom reply' }) },
+      idGenerator: () => 't',
+    });
+    const r = await gw.runTurn('hello');
+    expect(r).toMatchObject({ outcome: 'delivered', kind: 'custom', text: 'custom reply' });
+  });
+
+  it('returns failed (does not throw) when a custom handler throws', async () => {
+    const cfg = clone();
+    cfg.scenarios.main = { kind: 'custom', handler: 'boom' };
+    const gw = createGateway(cfg, {
+      llm: createFakeLlm([ok]).caller,
+      telemetry: nullSink,
+      customScenarios: {
+        boom: async () => {
+          throw new Error('boom');
+        },
+      },
+      idGenerator: () => 't',
+    });
+    await expect(gw.runTurn('hello')).resolves.toMatchObject({ outcome: 'failed' });
+  });
 });
