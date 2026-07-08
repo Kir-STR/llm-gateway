@@ -69,4 +69,28 @@ describe('core-managed timeout', () => {
     expect(r.outcome).toBe('failed'); // proves the 10ms tier timeout applied, not the 5000ms global
     expect(calls.length).toBe(1);
   });
+
+  it('handles an adapter that throws synchronously without leaking a rejection', async () => {
+    // Contract violation (call() should return a promise), but must still fail cleanly
+    // and not leave the timeout promise rejecting unhandled.
+    const cfg = clone();
+    cfg.llm = { timeout_ms: 1000 };
+    const rejections: unknown[] = [];
+    const onUnhandled = (r: unknown) => rejections.push(r);
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      const badLlm = {
+        call() {
+          throw new Error('sync boom');
+        },
+      };
+      const gw = createGateway(cfg, { llm: badLlm, telemetry: nullSink, idGenerator: () => 't' });
+      const r = await gw.runTurn('hello');
+      expect(r.outcome).toBe('failed');
+      await new Promise((res) => setTimeout(res, 20)); // let any stray rejection surface
+      expect(rejections).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
 });

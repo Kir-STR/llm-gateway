@@ -68,7 +68,9 @@ async function callWithTimeout(
       reject(new CoreTimeout());
     }, timeoutMs);
   });
-  const call = llm.call(req, controller.signal);
+  // Normalize to a promise so even a (contract-violating) synchronous throw from the
+  // adapter becomes a rejection the race handles — never a timer leak or unhandled rejection.
+  const call = (async () => llm.call(req, controller.signal))();
   call.catch(() => {}); // swallow a late rejection after the race has already timed out
   try {
     return await Promise.race([call, timeout]);
