@@ -54,6 +54,39 @@ await gateway.close();
 and loud on anything invalid. `runTurn` never throws for a normal rejection; a rejected or failed
 turn comes back as `outcome: 'rejected' | 'failed'` with a template string in `text`.
 
+## Trusted context (`meta`) and data-scope isolation
+
+`runTurn(input, meta)` draws a hard line between two kinds of data:
+
+- **`meta` — trusted server context.** It comes from your server (session, auth), is `Readonly`,
+  and reaches guards and custom scenario handlers via `TurnContext.meta`.
+- **`input`, and the model's `output` / `structured` — untrusted, model-influenced.** Anything a
+  user typed or the model produced.
+
+The core **never forwards `meta` into `LlmRequest`.** The built-in LLM scenario sends the model
+only the turn text and model settings — the trusted context is not part of the prompt the
+framework builds. And `LlmRequest` deliberately has **no** session/scope/tenant field: that
+absence _is_ the guarantee — the model has no channel through which it could select a data scope.
+
+**Threat model:** prompt injection → cross-tenant / cross-section data access. The correct defense
+is structural, not a heuristic: the scope that authorizes data access must come from trusted server
+context, never from the dialog, the model's text, its `structured` output, or (future) tool
+arguments.
+
+**Embedding safely:**
+
+- Put authorization/scope identifiers (tenant, section, session) in `meta` — or, better, bind them
+  into your `LlmCaller` / RAG closure server-side, so scope is _captured_ on the server rather than
+  passed as a parameter the model could influence.
+- Never derive a data scope from `input` or from the model's `structured` output.
+
+**Boundary of this guarantee:** the framework guarantees `meta` never enters the built-in
+`LlmRequest`. It does **not** (and cannot) police what your own `LlmCaller` implementation or a
+custom `ScenarioHandler` does with data it holds independently — enforcing scope on data / RAG /
+tool access is your auth layer's job (a future `entitlements` package will address server-bound
+scope enforcement). The gateway helps by keeping trusted context out of the model request; it does
+not replace auth / RAG / tool enforcement.
+
 ## The `Guard` contract
 
 Guards are deterministic, fast checks that run in parallel per phase (`input` or `output`).
