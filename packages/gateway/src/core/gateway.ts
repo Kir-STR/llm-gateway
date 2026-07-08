@@ -1,5 +1,12 @@
 import type {
-  Gateway, GatewayDeps, TurnContext, TurnResult, LimitsStore, DailyState, LlmRequest, LlmResponse,
+  Gateway,
+  GatewayDeps,
+  TurnContext,
+  TurnResult,
+  LimitsStore,
+  DailyState,
+  LlmRequest,
+  LlmResponse,
 } from './types.js';
 import { LlmCallError } from './types.js';
 import type { GatewayConfig, GuardConfig, ScenarioConfig } from './config-schema.js';
@@ -21,7 +28,12 @@ import { createPolicyGuard } from '../guards/policy.js';
 
 export function createMemoryLimitsStore(): LimitsStore {
   let state: DailyState | null = null;
-  return { load: async () => state, save: async (s) => { state = s; } };
+  return {
+    load: async () => state,
+    save: async (s) => {
+      state = s;
+    },
+  };
 }
 
 const DEFAULTS: Record<string, { onError: 'reject' | 'degrade'; template: string }> = {
@@ -43,34 +55,68 @@ function assertReferentialIntegrity(config: GatewayConfig, deps: GatewayDeps): v
   const models = new Set(Object.keys(config.models));
   const templates = new Set(Object.keys(config.templates));
   const structured = new Set(Object.keys(config.structured_output ?? {}));
-  const need = (ok: boolean, msg: string) => { if (!ok) throw new ConfigError(msg); };
+  const need = (ok: boolean, msg: string) => {
+    if (!ok) throw new ConfigError(msg);
+  };
 
   for (const key of ['normalize_reject', 'degrade', 'llm_fail', 'parse_fail', 'policy_reject']) {
     need(templates.has(key), `templates."${key}" is required by the pipeline`);
   }
   for (const rule of config.routing.rules) {
-    if (rule.scenario) need(scenarios.has(rule.scenario), `routing targets unknown scenario "${rule.scenario}"`);
-    if (rule.default) need(scenarios.has(rule.default), `routing default targets unknown scenario "${rule.default}"`);
+    if (rule.scenario)
+      need(scenarios.has(rule.scenario), `routing targets unknown scenario "${rule.scenario}"`);
+    if (rule.default)
+      need(
+        scenarios.has(rule.default),
+        `routing default targets unknown scenario "${rule.default}"`,
+      );
   }
-  need(config.routing.rules.some((r) => r.default !== undefined), 'routing.rules must include a rule with "default"');
+  need(
+    config.routing.rules.some((r) => r.default !== undefined),
+    'routing.rules must include a rule with "default"',
+  );
   for (const g of [...(config.guards?.input ?? []), ...(config.guards?.output ?? [])]) {
-    if (typeof g.route === 'string') need(scenarios.has(g.route), `guard "${g.name}" route targets unknown scenario "${g.route}"`);
-    if (typeof g.reject_template === 'string') need(templates.has(g.reject_template), `guard "${g.name}" reject_template "${g.reject_template}" is undefined`);
-    const effective = typeof g.reject_template === 'string' ? g.reject_template : DEFAULTS[g.name]?.template;
-    if (effective !== undefined) need(templates.has(effective), `guard "${g.name}" effective reject template "${effective}" is undefined`);
+    if (typeof g.route === 'string')
+      need(scenarios.has(g.route), `guard "${g.name}" route targets unknown scenario "${g.route}"`);
+    if (typeof g.reject_template === 'string')
+      need(
+        templates.has(g.reject_template),
+        `guard "${g.name}" reject_template "${g.reject_template}" is undefined`,
+      );
+    const effective =
+      typeof g.reject_template === 'string' ? g.reject_template : DEFAULTS[g.name]?.template;
+    if (effective !== undefined)
+      need(
+        templates.has(effective),
+        `guard "${g.name}" effective reject template "${effective}" is undefined`,
+      );
   }
   for (const [name, sc] of Object.entries(config.scenarios)) {
     if (sc.kind === 'llm') {
       need(models.has(sc.model), `scenario "${name}" references unknown model tier "${sc.model}"`);
-      if (sc.structured_output) need(structured.has(sc.structured_output), `scenario "${name}" references unknown structured_output "${sc.structured_output}"`);
+      if (sc.structured_output)
+        need(
+          structured.has(sc.structured_output),
+          `scenario "${name}" references unknown structured_output "${sc.structured_output}"`,
+        );
     } else if (sc.kind === 'stub') {
-      need(templates.has(sc.template), `scenario "${name}" references unknown template "${sc.template}"`);
+      need(
+        templates.has(sc.template),
+        `scenario "${name}" references unknown template "${sc.template}"`,
+      );
     } else {
-      need(!!deps.customScenarios?.[sc.handler], `scenario "${name}" references custom handler "${sc.handler}" absent from deps.customScenarios`);
+      need(
+        !!deps.customScenarios?.[sc.handler],
+        `scenario "${name}" references custom handler "${sc.handler}" absent from deps.customScenarios`,
+      );
     }
   }
   for (const r of config.retry ?? []) {
-    if (r.escalate_to_model) need(models.has(r.escalate_to_model), `retry escalate_to_model "${r.escalate_to_model}" is not a known model tier`);
+    if (r.escalate_to_model)
+      need(
+        models.has(r.escalate_to_model),
+        `retry escalate_to_model "${r.escalate_to_model}" is not a known model tier`,
+      );
   }
 }
 
@@ -85,7 +131,8 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
 
   // soft/hard thresholds from the limits guard config (facade owns increment + soft emission)
   const limitsCfg = (config.guards?.input ?? []).find((g) => g.name === 'limits');
-  const perDay = (limitsCfg?.per_day as { soft_warning_usd?: number; hard_cap_usd?: number } | undefined) ?? {};
+  const perDay =
+    (limitsCfg?.per_day as { soft_warning_usd?: number; hard_cap_usd?: number } | undefined) ?? {};
   const softCapUsd = perDay.soft_warning_usd;
   const hardCapForEvent = perDay.hard_cap_usd ?? softCapUsd;
 
@@ -107,15 +154,20 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
       else if (cfg.name === 'policy') guard = createPolicyGuard(cfg);
       else {
         const custom = (deps.guards ?? []).find((g) => g.name === cfg.name && g.phase === phase);
-        if (!custom) throw new ConfigError(`Unknown guard "${cfg.name}" (${phase}); not built-in and not in deps.guards`);
+        if (!custom)
+          throw new ConfigError(
+            `Unknown guard "${cfg.name}" (${phase}); not built-in and not in deps.guards`,
+          );
         guard = custom;
       }
       const onError = (cfg.on_error ?? def?.onError ?? 'degrade') as 'reject' | 'degrade';
-      const rejectTemplate = (cfg.reject_template as string | undefined) ?? def?.template ?? 'degrade';
+      const rejectTemplate =
+        (cfg.reject_template as string | undefined) ?? def?.template ?? 'degrade';
       return { guard, onError, rejectTemplate };
     });
     const transformers = entries.filter((e) => e.guard.transforms === true);
-    if (transformers.length > 1) throw new ConfigError(`More than one transforming guard in ${phase} phase`);
+    if (transformers.length > 1)
+      throw new ConfigError(`More than one transforming guard in ${phase} phase`);
     return entries;
   }
 
@@ -129,28 +181,60 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
 
     // helpers that capture per-turn state
     const finish = (
-      outcome: TurnResult['outcome'], kind: TurnResult['kind'], text: string, scenario: string,
-      flags: string[], degradeReason?: TurnResult['degradeReason'], structured?: unknown,
+      outcome: TurnResult['outcome'],
+      kind: TurnResult['kind'],
+      text: string,
+      scenario: string,
+      flags: string[],
+      degradeReason?: TurnResult['degradeReason'],
+      structured?: unknown,
     ): TurnResult => {
       emit(EVENTS.delivery, { kind, scenario, textLen: text.length });
       emit(EVENTS.turnCompleted, {
-        outcome, scenario, flags, totalLatencyMs: Date.now() - startedAt,
-        totalCostUsd: usage.costUsd, degradeReason,
+        outcome,
+        scenario,
+        flags,
+        totalLatencyMs: Date.now() - startedAt,
+        totalCostUsd: usage.costUsd,
+        degradeReason,
       });
-      const result: TurnResult = { traceId, outcome, kind, text, scenario, flags, usage: { ...usage } };
+      const result: TurnResult = {
+        traceId,
+        outcome,
+        kind,
+        text,
+        scenario,
+        flags,
+        usage: { ...usage },
+      };
       if (structured !== undefined) result.structured = structured;
       if (degradeReason !== undefined) result.degradeReason = degradeReason;
       return result;
     };
     const stub = (
-      templateKey: string, outcome: TurnResult['outcome'], scenario: string,
-      flags: string[], degradeReason?: TurnResult['degradeReason'],
-    ) => finish(outcome, 'stub', renderNamed(config.templates, templateKey, traceId), scenario, flags, degradeReason);
+      templateKey: string,
+      outcome: TurnResult['outcome'],
+      scenario: string,
+      flags: string[],
+      degradeReason?: TurnResult['degradeReason'],
+    ) =>
+      finish(
+        outcome,
+        'stub',
+        renderNamed(config.templates, templateKey, traceId),
+        scenario,
+        flags,
+        degradeReason,
+      );
 
     // 1) normalize
     const norm = normalize(input, config.normalize?.max_input_chars);
     if (norm.reject) {
-      emit(EVENTS.normalize, { outcome: 'REJECT', code: norm.reject.code, rulesApplied: norm.rulesApplied });
+      emit(EVENTS.normalize, {
+        outcome: 'REJECT',
+        code: norm.reject.code,
+        rulesApplied: norm.rulesApplied,
+      });
       return stub('normalize_reject', 'rejected', 'normalize', []);
     }
     emit(EVENTS.normalize, { outcome: 'PASS', rulesApplied: norm.rulesApplied });
@@ -161,21 +245,53 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
     const inResults = await runGuards(inputEntries, ctx);
     for (const r of inResults) {
       emit(EVENTS.guardResult, {
-        guard: r.name, phase: 'input', outcome: r.verdict.outcome, code: r.verdict.code,
-        durationMs: r.durationMs, timedOut: r.timedOut, errored: r.errored, evidence: r.verdict.evidence,
+        guard: r.name,
+        phase: 'input',
+        outcome: r.verdict.outcome,
+        code: r.verdict.code,
+        durationMs: r.durationMs,
+        timedOut: r.timedOut,
+        errored: r.errored,
+        evidence: r.verdict.evidence,
       });
     }
-    const agg = aggregateInput(inResults.map((r) => ({ name: r.name, verdict: r.verdict, rejectTemplate: r.rejectTemplate })));
-    emit(EVENTS.guardsAggregated, { decision: agg.decision, flags: agg.flags, forcedRoute: agg.forcedRoute, rejectCode: agg.rejectCode });
+    const agg = aggregateInput(
+      inResults.map((r) => ({
+        name: r.name,
+        verdict: r.verdict,
+        rejectTemplate: r.rejectTemplate,
+      })),
+    );
+    emit(EVENTS.guardsAggregated, {
+      decision: agg.decision,
+      flags: agg.flags,
+      forcedRoute: agg.forcedRoute,
+      rejectCode: agg.rejectCode,
+    });
 
     if (agg.decision === 'reject') {
-      const degradeReason = agg.rejectCode === 'E_COST_CAP' ? 'cost_cap'
-        : agg.rejectCode === 'E_GUARD_ERROR' ? 'guard_error' : undefined;
+      const degradeReason =
+        agg.rejectCode === 'E_COST_CAP'
+          ? 'cost_cap'
+          : agg.rejectCode === 'E_GUARD_ERROR'
+            ? 'guard_error'
+            : undefined;
       if (agg.rejectCode === 'E_COST_CAP') {
-        const ev = (inResults.find((r) => r.verdict.code === 'E_COST_CAP')?.verdict.evidence ?? {}) as { dailyCostUsd?: number; capUsd?: number };
-        emit(EVENTS.costCap, { state: 'hard', dailyCostUsd: ev.dailyCostUsd ?? 0, capUsd: ev.capUsd ?? 0 });
+        const ev = (inResults.find((r) => r.verdict.code === 'E_COST_CAP')?.verdict.evidence ??
+          {}) as { dailyCostUsd?: number; capUsd?: number };
+        emit(EVENTS.costCap, {
+          state: 'hard',
+          dailyCostUsd: ev.dailyCostUsd ?? 0,
+          capUsd: ev.capUsd ?? 0,
+        });
       }
-      return stub(agg.rejectTemplate ?? 'degrade', 'rejected', 'guard_reject', agg.flags, degradeReason);
+      return stub(
+        agg.rejectTemplate ?? 'degrade',
+        'rejected',
+        'guard_reject',
+        agg.flags,
+        degradeReason,
+      );
     }
 
     if (agg.transform !== undefined) ctx.input.text = agg.transform;
@@ -206,18 +322,39 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
     const incrementDaily = async (cost: number): Promise<void> => {
       const today = utcDate(new Date());
       let state: DailyState | null = null;
-      try { state = await store.load(); } catch { state = null; }
-      const base = state && state.date === today ? state : { date: today, costUsd: 0, requestCount: 0 };
+      try {
+        state = await store.load();
+      } catch {
+        state = null;
+      }
+      const base =
+        state && state.date === today ? state : { date: today, costUsd: 0, requestCount: 0 };
       const prev = base.costUsd;
-      const next: DailyState = { date: today, costUsd: prev + cost, requestCount: base.requestCount + 1 };
-      try { await store.save(next); } catch { /* ignore persistence errors */ }
+      const next: DailyState = {
+        date: today,
+        costUsd: prev + cost,
+        requestCount: base.requestCount + 1,
+      };
+      try {
+        await store.save(next);
+      } catch {
+        /* ignore persistence errors */
+      }
       if (softCapUsd !== undefined && prev < softCapUsd && next.costUsd >= softCapUsd) {
-        emit(EVENTS.costCap, { state: 'soft', dailyCostUsd: next.costUsd, capUsd: hardCapForEvent ?? softCapUsd });
+        emit(EVENTS.costCap, {
+          state: 'soft',
+          dailyCostUsd: next.costUsd,
+          capUsd: hardCapForEvent ?? softCapUsd,
+        });
       }
     };
 
     // one transport-retried LLM call; increments the daily counter on success
-    const doLlmCall = async (modelRef: string, correction: string | undefined, attemptLabelBase: number): Promise<LlmResponse> => {
+    const doLlmCall = async (
+      modelRef: string,
+      correction: string | undefined,
+      attemptLabelBase: number,
+    ): Promise<LlmResponse> => {
       const tier = config.models[modelRef];
       if (!tier) throw new ConfigError(`Scenario references unknown model tier "${modelRef}"`);
       const model = tier.model;
@@ -244,10 +381,16 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
           const resp = await deps.llm.call(req);
           const cost = actualCostUsd(model, resp.usage, prices);
           emit(EVENTS.llmCall, {
-            modelRef, model, attempt: attemptLabelBase + attempt,
-            inTokens: resp.usage.inputTokens, outTokens: resp.usage.outputTokens,
-            cacheReadTokens: resp.usage.cacheReadTokens, cacheWriteTokens: resp.usage.cacheWriteTokens,
-            latencyMs: Date.now() - t0, outcome: 'ok', costUsd: cost,
+            modelRef,
+            model,
+            attempt: attemptLabelBase + attempt,
+            inTokens: resp.usage.inputTokens,
+            outTokens: resp.usage.outputTokens,
+            cacheReadTokens: resp.usage.cacheReadTokens,
+            cacheWriteTokens: resp.usage.cacheWriteTokens,
+            latencyMs: Date.now() - t0,
+            outcome: 'ok',
+            costUsd: cost,
           });
           usage.inputTokens += resp.usage.inputTokens;
           usage.outputTokens += resp.usage.outputTokens;
@@ -257,10 +400,24 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
           return resp;
         } catch (err) {
           const code = err instanceof LlmCallError ? err.code : 'unknown';
-          emit(EVENTS.llmCall, { modelRef, model, attempt: attemptLabelBase + attempt, inTokens: 0, outTokens: 0, latencyMs: Date.now() - t0, outcome: 'error', errorCode: code, costUsd: 0 });
+          emit(EVENTS.llmCall, {
+            modelRef,
+            model,
+            attempt: attemptLabelBase + attempt,
+            inTokens: 0,
+            outTokens: 0,
+            latencyMs: Date.now() - t0,
+            outcome: 'error',
+            errorCode: code,
+            costUsd: 0,
+          });
           const retryable = err instanceof LlmCallError && err.retryable;
           if (retryable && attempt <= maxRetries) {
-            emit(EVENTS.retry, { trigger: 'llm_transport_error', attempt, maxAttempts: maxRetries });
+            emit(EVENTS.retry, {
+              trigger: 'llm_transport_error',
+              attempt,
+              maxAttempts: maxRetries,
+            });
             await sleep(backoffMs(rule?.backoff_ms ?? 250, attempt));
             continue;
           }
@@ -270,8 +427,12 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
     };
 
     // resolve structured output with its own correction retry
-    const resolveStructured = async (first: LlmResponse, modelRef: string): Promise<{ resp: LlmResponse; value: unknown } | { failed: true }> => {
-      if (scenario.kind !== 'llm' || !scenario.structured_output) return { resp: first, value: undefined };
+    const resolveStructured = async (
+      first: LlmResponse,
+      modelRef: string,
+    ): Promise<{ resp: LlmResponse; value: unknown } | { failed: true }> => {
+      if (scenario.kind !== 'llm' || !scenario.structured_output)
+        return { resp: first, value: undefined };
       const validate = structuredValidators.get(scenario.structured_output)!;
       const rule = findRetryRule(config.retry, 'structured_parse_failed');
       const maxRetries = rule?.max_attempts ?? 0;
@@ -279,13 +440,25 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
       let attempt = 0;
       while (true) {
         const parsed = validate(resp.structured);
-        emit(EVENTS.structuredParse, { valid: parsed.valid, attempt, code: parsed.valid ? undefined : 'E_SCHEMA', detail: parsed.detail });
+        emit(EVENTS.structuredParse, {
+          valid: parsed.valid,
+          attempt,
+          code: parsed.valid ? undefined : 'E_SCHEMA',
+          detail: parsed.detail,
+        });
         if (parsed.valid) return { resp, value: parsed.value };
         if (attempt < maxRetries) {
           attempt++;
-          emit(EVENTS.retry, { trigger: 'structured_parse_failed', attempt, maxAttempts: maxRetries });
-          try { resp = await doLlmCall(modelRef, rule?.correction_prompt, attempt); }
-          catch { return { failed: true }; }
+          emit(EVENTS.retry, {
+            trigger: 'structured_parse_failed',
+            attempt,
+            maxAttempts: maxRetries,
+          });
+          try {
+            resp = await doLlmCall(modelRef, rule?.correction_prompt, attempt);
+          } catch {
+            return { failed: true };
+          }
           continue;
         }
         return { failed: true };
@@ -293,7 +466,12 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
     };
 
     // output-guard stage, shared by llm and custom scenarios; retries the llm generation on hard reject
-    async function outputStage(c: TurnContext, scenarioName: string, kind: 'llm' | 'custom', flags: string[]): Promise<TurnResult> {
+    async function outputStage(
+      c: TurnContext,
+      scenarioName: string,
+      kind: 'llm' | 'custom',
+      flags: string[],
+    ): Promise<TurnResult> {
       const outRule = findRetryRule(config.retry, 'output_guard_rejected');
       const outMax = outRule?.max_attempts ?? 0;
       let outAttempt = 0;
@@ -305,25 +483,52 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
         const outResults = await runGuards(outputEntries, c);
         for (const r of outResults) {
           emit(EVENTS.guardResult, {
-            guard: r.name, phase: 'output', outcome: r.verdict.outcome, code: r.verdict.code,
-            durationMs: r.durationMs, timedOut: r.timedOut, errored: r.errored, evidence: r.verdict.evidence,
+            guard: r.name,
+            phase: 'output',
+            outcome: r.verdict.outcome,
+            code: r.verdict.code,
+            durationMs: r.durationMs,
+            timedOut: r.timedOut,
+            errored: r.errored,
+            evidence: r.verdict.evidence,
           });
         }
-        const outAgg = aggregateInput(outResults.map((r) => ({ name: r.name, verdict: r.verdict, rejectTemplate: r.rejectTemplate })));
+        const outAgg = aggregateInput(
+          outResults.map((r) => ({
+            name: r.name,
+            verdict: r.verdict,
+            rejectTemplate: r.rejectTemplate,
+          })),
+        );
         const mergedFlags = [...flags, ...outAgg.flags];
 
         if (outAgg.decision !== 'reject') {
-          return finish('delivered', kind, c.output?.text ?? '', scenarioName, mergedFlags, undefined, c.output?.structured);
+          return finish(
+            'delivered',
+            kind,
+            c.output?.text ?? '',
+            scenarioName,
+            mergedFlags,
+            undefined,
+            c.output?.structured,
+          );
         }
         // hard output reject → retry the generation with correction (llm only), else stub policy_reject
         if (kind === 'llm' && outAttempt < outMax) {
           outAttempt++;
           if (outRule?.escalate_to_model) modelRef = outRule.escalate_to_model;
-          emit(EVENTS.retry, { trigger: 'output_guard_rejected', attempt: outAttempt, maxAttempts: outMax, escalatedTo: outRule?.escalate_to_model });
+          emit(EVENTS.retry, {
+            trigger: 'output_guard_rejected',
+            attempt: outAttempt,
+            maxAttempts: outMax,
+            escalatedTo: outRule?.escalate_to_model,
+          });
           let resp: LlmResponse;
-          try { resp = await doLlmCall(modelRef, outRule?.correction_prompt, 100 + outAttempt); }
-          catch (err) {
-            if (err instanceof BudgetExceeded) return stub('degrade', 'rejected', scenarioName, mergedFlags, 'cost_cap');
+          try {
+            resp = await doLlmCall(modelRef, outRule?.correction_prompt, 100 + outAttempt);
+          } catch (err) {
+            if (err instanceof BudgetExceeded)
+              return stub('degrade', 'rejected', scenarioName, mergedFlags, 'cost_cap');
             return stub('llm_fail', 'failed', scenarioName, mergedFlags, 'upstream_unavailable');
           }
           const s = await resolveStructured(resp, modelRef);
@@ -340,11 +545,13 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
     try {
       firstResp = await doLlmCall(scenario.model, undefined, 0);
     } catch (err) {
-      if (err instanceof BudgetExceeded) return stub('degrade', 'rejected', route.scenario, agg.flags, 'cost_cap');
+      if (err instanceof BudgetExceeded)
+        return stub('degrade', 'rejected', route.scenario, agg.flags, 'cost_cap');
       return stub('llm_fail', 'failed', route.scenario, agg.flags, 'upstream_unavailable');
     }
     const structuredResult = await resolveStructured(firstResp, scenario.model);
-    if ('failed' in structuredResult) return stub('parse_fail', 'failed', route.scenario, agg.flags);
+    if ('failed' in structuredResult)
+      return stub('parse_fail', 'failed', route.scenario, agg.flags);
     ctx.output = { text: structuredResult.resp.text ?? '', structured: structuredResult.value };
     return await outputStage(ctx, route.scenario, 'llm', agg.flags);
   }

@@ -3,7 +3,9 @@ import type { GatewayConfig } from './config-schema.js';
 export type RouteResult = { scenario: string; matchedRule: string };
 
 export function selectScenario(
-  routing: GatewayConfig['routing'], flags: string[], forcedRoute?: string,
+  routing: GatewayConfig['routing'],
+  flags: string[],
+  forcedRoute?: string,
 ): RouteResult {
   if (forcedRoute) return { scenario: forcedRoute, matchedRule: 'forced' };
   const rules = routing.rules;

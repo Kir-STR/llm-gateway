@@ -13,7 +13,11 @@ export type InputAggregate = {
 export function aggregateInput(results: InputGuardResult[]): InputAggregate {
   const reject = results.find((r) => r.verdict.outcome === 'REJECT');
   if (reject) {
-    const out: InputAggregate = { decision: 'reject', flags: [], rejectTemplate: reject.rejectTemplate };
+    const out: InputAggregate = {
+      decision: 'reject',
+      flags: [],
+      rejectTemplate: reject.rejectTemplate,
+    };
     if (reject.verdict.code !== undefined) out.rejectCode = reject.verdict.code;
     return out;
   }

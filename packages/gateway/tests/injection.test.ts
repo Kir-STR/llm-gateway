@@ -4,10 +4,24 @@ import type { TurnContext } from '../src/core/types.js';
 
 const ctx = (text: string): TurnContext => ({ traceId: 't', input: { raw: text, text }, meta: {} });
 const cfg = {
-  name: 'injection', on_error: 'reject' as const, timeout_ms: 50,
+  name: 'injection',
+  on_error: 'reject' as const,
+  timeout_ms: 50,
   patterns: [
-    { id: 'ignore_prev', kind: 'substring' as const, pattern: 'ignore previous', case_sensitive: false, severity: 'hard' as const },
-    { id: 'b64', kind: 'regex' as const, pattern: '[A-Za-z0-9+/]{20,}={0,3}', case_sensitive: true, severity: 'soft' as const },
+    {
+      id: 'ignore_prev',
+      kind: 'substring' as const,
+      pattern: 'ignore previous',
+      case_sensitive: false,
+      severity: 'hard' as const,
+    },
+    {
+      id: 'b64',
+      kind: 'regex' as const,
+      pattern: '[A-Za-z0-9+/]{20,}={0,3}',
+      case_sensitive: true,
+      severity: 'soft' as const,
+    },
   ],
 };
 

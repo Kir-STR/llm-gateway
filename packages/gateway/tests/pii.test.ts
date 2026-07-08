@@ -4,8 +4,11 @@ import type { TurnContext } from '../src/core/types.js';
 
 const ctx = (text: string): TurnContext => ({ traceId: 't', input: { raw: text, text }, meta: {} });
 const cfg = {
-  name: 'pii', on_error: 'reject' as const, rules: ['ru_phone', 'email'],
-  mask: { ru_phone: '[PHONE_MASKED]', email: '[EMAIL_MASKED]' }, route: 'pii_short_circuit',
+  name: 'pii',
+  on_error: 'reject' as const,
+  rules: ['ru_phone', 'email'],
+  mask: { ru_phone: '[PHONE_MASKED]', email: '[EMAIL_MASKED]' },
+  route: 'pii_short_circuit',
 };
 
 describe('pii guard', () => {

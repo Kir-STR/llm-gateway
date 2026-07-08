@@ -11,7 +11,8 @@ function utcDate(d: Date): string {
 }
 
 export function createLimitsGuard(cfg: GuardConfig, deps: LimitsGuardDeps): Guard {
-  const perDay = (cfg.per_day as { hard_cap_usd?: number; soft_warning_usd?: number } | undefined) ?? {};
+  const perDay =
+    (cfg.per_day as { hard_cap_usd?: number; soft_warning_usd?: number } | undefined) ?? {};
   const now = deps.now ?? (() => new Date());
   return {
     name: cfg.name,
@@ -29,7 +30,11 @@ export function createLimitsGuard(cfg: GuardConfig, deps: LimitsGuardDeps): Guar
       }
       const hard = perDay.hard_cap_usd;
       if (hard !== undefined && costUsd >= hard) {
-        return { outcome: 'REJECT', code: 'E_COST_CAP', evidence: { dailyCostUsd: costUsd, capUsd: hard } };
+        return {
+          outcome: 'REJECT',
+          code: 'E_COST_CAP',
+          evidence: { dailyCostUsd: costUsd, capUsd: hard },
+        };
       }
       return { outcome: 'PASS' };
     },

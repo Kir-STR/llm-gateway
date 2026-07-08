@@ -13,7 +13,9 @@ export function matchPatterns(rules: PatternRule[], text: string): PatternHit[] 
 function matchesRule(rule: PatternRule, text: string): boolean {
   if (rule.kind === 'substring') {
     const cs = rule.case_sensitive ?? false;
-    return cs ? text.includes(rule.pattern) : text.toLowerCase().includes(rule.pattern.toLowerCase());
+    return cs
+      ? text.includes(rule.pattern)
+      : text.toLowerCase().includes(rule.pattern.toLowerCase());
   }
   const flags = rule.case_sensitive ? '' : 'i';
   return new RegExp(rule.pattern, flags).test(text);

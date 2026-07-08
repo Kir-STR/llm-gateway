@@ -9,7 +9,9 @@ describe('templates', () => {
     expect(renderTemplate('No vars here', 'xxxx')).toBe('No vars here');
   });
   it('renders by key from a templates map', () => {
-    expect(renderNamed({ degrade: 'Down: {{trace_id_short}}' }, 'degrade', 'abcdefgh12')).toBe('Down: abcdefgh');
+    expect(renderNamed({ degrade: 'Down: {{trace_id_short}}' }, 'degrade', 'abcdefgh12')).toBe(
+      'Down: abcdefgh',
+    );
   });
   it('throws on missing key', () => {
     expect(() => renderNamed({}, 'nope', 'x')).toThrow();

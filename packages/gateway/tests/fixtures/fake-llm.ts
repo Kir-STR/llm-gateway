@@ -1,7 +1,10 @@
 import type { LlmCaller, LlmRequest, LlmResponse } from '../../src/core/types.js';
 import { LlmCallError } from '../../src/core/types.js';
 
-export function createFakeLlm(script: Array<LlmResponse | LlmCallError>): { caller: LlmCaller; calls: LlmRequest[] } {
+export function createFakeLlm(script: Array<LlmResponse | LlmCallError>): {
+  caller: LlmCaller;
+  calls: LlmRequest[];
+} {
   const calls: LlmRequest[] = [];
   let i = 0;
   const caller: LlmCaller = {

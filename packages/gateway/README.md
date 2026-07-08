@@ -107,8 +107,20 @@ guards:
       on_error: reject
       timeout_ms: 50
       patterns:
-        - { id: ignore_prev, kind: substring, pattern: 'ignore previous', case_sensitive: false, severity: hard }
-        - { id: base64_chunk, kind: regex, pattern: '[A-Za-z0-9+/]{200,}={0,3}', case_sensitive: true, severity: soft }
+        - {
+            id: ignore_prev,
+            kind: substring,
+            pattern: 'ignore previous',
+            case_sensitive: false,
+            severity: hard,
+          }
+        - {
+            id: base64_chunk,
+            kind: regex,
+            pattern: '[A-Za-z0-9+/]{200,}={0,3}',
+            case_sensitive: true,
+            severity: soft,
+          }
     - name: pii # built-in, transforms: true
       on_error: reject
       rules: [ru_phone, email] # built-in rule sets; custom rules go through `patterns`
@@ -125,7 +137,12 @@ guards:
       rules:
         - { id: no_leak, kind: regex_deny, pattern: '(?i)system prompt', severity: hard }
         - { id: has_disclaimer, kind: regex_require, pattern: 'see the docs', severity: soft }
-        - { id: shape_ok, kind: json_schema, schema: { type: object, required: [answer] }, severity: hard }
+        - {
+            id: shape_ok,
+            kind: json_schema,
+            schema: { type: object, required: [answer] },
+            severity: hard,
+          }
 
 limits: # shared cost limits
   per_request: { max_cost_usd: 0.15 }
@@ -145,16 +162,26 @@ scenarios:
 
 structured_output:
   answer_v1:
-    schema: { type: object, required: [answer, confidence],
-              properties: { answer: { type: string }, confidence: { type: number } } }
+    schema:
+      {
+        type: object,
+        required: [answer, confidence],
+        properties: { answer: { type: string }, confidence: { type: number } },
+      }
 
 retry: # max_attempts = retries beyond the initial attempt
   - { trigger: llm_transport_error, max_attempts: 2, backoff_ms: 250 } # exponential
-  - { trigger: structured_parse_failed, max_attempts: 1,
-      correction_prompt: 'Previous reply failed schema validation. Reply strictly via the tool.' }
-  - { trigger: output_guard_rejected, max_attempts: 1,
+  - {
+      trigger: structured_parse_failed,
+      max_attempts: 1,
+      correction_prompt: 'Previous reply failed schema validation. Reply strictly via the tool.',
+    }
+  - {
+      trigger: output_guard_rejected,
+      max_attempts: 1,
       correction_prompt: 'Previous reply violated output policy. Follow the policy strictly.',
-      escalate_to_model: expensive }
+      escalate_to_model: expensive,
+    }
 
 templates: # {{trace_id_short}} is the only variable
   llm_fail: 'Service temporarily unavailable. Code: {{trace_id_short}}'
@@ -175,7 +202,7 @@ templates: # {{trace_id_short}} is the only variable
   DEGRADE (flag `injection`); evidence is the ids of the patterns that matched, never the input
   text.
 - **pii:** built-in rule sets `ru_phone`, `email`; masks every match (email first, then phone).
-  A hit is *not* a rejection: the verdict is `outcome: 'PASS'` with a `transform` (masked text)
+  A hit is _not_ a rejection: the verdict is `outcome: 'PASS'` with a `transform` (masked text)
   and a `route` from config (short-circuit without calling the LLM). Evidence is boolean
   presence flags only (e.g. `{ email: true }`), never raw values. `on_error: reject` applies to
   the guard itself failing, not to a PII hit.
@@ -192,19 +219,19 @@ templates: # {{trace_id_short}} is the only variable
 Every event carries `traceId` and `configVersion`. Event names are exported as `EVENTS` from
 `core/telemetry-events` (event-name constants + a data-shape type per event).
 
-| event | data |
-|---|---|
-| `turn_started` | `inputLen` |
-| `normalize` | `outcome, code?, rulesApplied` |
-| `guard_result` | `guard, phase, outcome, code?, durationMs, timedOut, errored, evidence?` |
-| `guards_aggregated` | `decision, flags[], forcedRoute?, rejectCode?` |
-| `route_decision` | `scenario, matchedRule` |
-| `llm_call` | `modelRef, model, attempt, inTokens, outTokens, cacheReadTokens?, cacheWriteTokens?, latencyMs, outcome, errorCode?, costUsd` |
-| `structured_parse` | `valid, attempt, code?, detail?` |
-| `retry` | `trigger, attempt, maxAttempts, escalatedTo?` |
-| `cost_cap` | `state: soft\|hard, dailyCostUsd, capUsd` |
-| `delivery` | `kind, scenario, textLen` |
-| `turn_completed` | `outcome, scenario, flags[], totalLatencyMs, totalCostUsd, degradeReason?` |
+| event               | data                                                                                                                          |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `turn_started`      | `inputLen`                                                                                                                    |
+| `normalize`         | `outcome, code?, rulesApplied`                                                                                                |
+| `guard_result`      | `guard, phase, outcome, code?, durationMs, timedOut, errored, evidence?`                                                      |
+| `guards_aggregated` | `decision, flags[], forcedRoute?, rejectCode?`                                                                                |
+| `route_decision`    | `scenario, matchedRule`                                                                                                       |
+| `llm_call`          | `modelRef, model, attempt, inTokens, outTokens, cacheReadTokens?, cacheWriteTokens?, latencyMs, outcome, errorCode?, costUsd` |
+| `structured_parse`  | `valid, attempt, code?, detail?`                                                                                              |
+| `retry`             | `trigger, attempt, maxAttempts, escalatedTo?`                                                                                 |
+| `cost_cap`          | `state: soft\|hard, dailyCostUsd, capUsd`                                                                                     |
+| `delivery`          | `kind, scenario, textLen`                                                                                                     |
+| `turn_completed`    | `outcome, scenario, flags[], totalLatencyMs, totalCostUsd, degradeReason?`                                                    |
 
 The `./node` JSONL sink (`createJsonlSink`) writes one line per event —
 `{ts, event, traceId, configVersion, ...data}` — append-only, with daily file rotation. The
