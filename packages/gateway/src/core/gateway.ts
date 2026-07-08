@@ -286,6 +286,18 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
         degradeReason,
       );
 
+    // map a structured-resolution failure reason to the right stub/outcome
+    const mapStructuredFailure = (
+      reason: 'parse' | 'upstream' | 'cost_cap',
+      scenarioName: string,
+      flags: string[],
+    ): TurnResult =>
+      reason === 'cost_cap'
+        ? stub('degrade', 'rejected', scenarioName, flags, 'cost_cap')
+        : reason === 'upstream'
+          ? stub('llm_fail', 'failed', scenarioName, flags, 'upstream_unavailable')
+          : stub('parse_fail', 'failed', scenarioName, flags);
+
     // 1) normalize
     const norm = normalize(input, config.normalize?.max_input_chars);
     if (norm.reject) {
@@ -498,7 +510,9 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
     const resolveStructured = async (
       first: LlmResponse,
       modelRef: string,
-    ): Promise<{ resp: LlmResponse; value: unknown } | { failed: true }> => {
+    ): Promise<
+      { resp: LlmResponse; value: unknown } | { failed: 'parse' | 'upstream' | 'cost_cap' }
+    > => {
       if (scenario.kind !== 'llm' || !scenario.structured_output)
         return { resp: first, value: undefined };
       const validate = structuredValidators.get(scenario.structured_output)!;
@@ -524,12 +538,12 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
           });
           try {
             resp = await doLlmCall(modelRef, rule?.correction_prompt, attempt);
-          } catch {
-            return { failed: true };
+          } catch (err) {
+            return { failed: err instanceof BudgetExceeded ? 'cost_cap' : 'upstream' };
           }
           continue;
         }
-        return { failed: true };
+        return { failed: 'parse' }; // schema exhaustion, no transport/timeout failure
       }
     };
 
@@ -600,7 +614,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
             return stub('llm_fail', 'failed', scenarioName, mergedFlags, 'upstream_unavailable');
           }
           const s = await resolveStructured(resp, modelRef);
-          if ('failed' in s) return stub('parse_fail', 'failed', scenarioName, mergedFlags);
+          if ('failed' in s) return mapStructuredFailure(s.failed, scenarioName, mergedFlags);
           c.output = { text: resp.text ?? '', structured: s.value };
           continue;
         }
@@ -619,7 +633,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
     }
     const structuredResult = await resolveStructured(firstResp, scenario.model);
     if ('failed' in structuredResult)
-      return stub('parse_fail', 'failed', route.scenario, agg.flags);
+      return mapStructuredFailure(structuredResult.failed, route.scenario, agg.flags);
     ctx.output = { text: structuredResult.resp.text ?? '', structured: structuredResult.value };
     return await outputStage(ctx, route.scenario, 'llm', agg.flags);
   }

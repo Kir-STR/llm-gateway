@@ -94,3 +94,34 @@ describe('core-managed timeout', () => {
     }
   });
 });
+
+describe('structured-correction failure classification', () => {
+  const bad: LlmResponse = {
+    text: 'x',
+    structured: { answer: 'a' },
+    usage: { inputTokens: 1, outputTokens: 1 },
+  }; // missing `confidence` -> schema invalid
+
+  it('schema exhaustion (valid transport) -> parse_fail/failed', async () => {
+    const { caller } = createFakeLlm([bad, bad, bad]); // neutralConfig: structured_parse_failed max_attempts 1
+    const gw = createGateway(neutralConfig, {
+      llm: caller,
+      telemetry: nullSink,
+      idGenerator: () => 't',
+    });
+    const r = await gw.runTurn('hello');
+    expect(r.outcome).toBe('failed');
+    expect(r.text).toBe('Could not process the reply. Code: t'); // parse_fail
+  });
+
+  it('timeout during the structured-correction call -> llm_fail/upstream_unavailable (not parse_fail)', async () => {
+    const cfg = clone();
+    cfg.llm = { timeout_ms: 20 };
+    // first call returns invalid structured (triggers a correction retry); the correction call hangs -> core timeout
+    const { caller } = createFakeLlm([bad, hang]);
+    const gw = createGateway(cfg, { llm: caller, telemetry: nullSink, idGenerator: () => 't' });
+    const r = await gw.runTurn('hello');
+    expect(r).toMatchObject({ outcome: 'failed', degradeReason: 'upstream_unavailable' });
+    expect(r.text).toBe('Service temporarily unavailable. Code: t'); // llm_fail, NOT parse_fail
+  });
+});
