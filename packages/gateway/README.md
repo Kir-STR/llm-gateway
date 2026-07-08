@@ -137,11 +137,14 @@ Full annotated example (values are neutral placeholders — see
 same config, runnable):
 
 ```yaml
-version: 1.0.0
+version: 1.1.0
+
+llm: # core-managed LLM-call timeout (opt-in); overridable per tier below
+  timeout_ms: 30000
 
 models: # tiers; referenced by key from scenarios and retry
   cheap: { model: model-cheap, max_tokens: 1024, temperature: 0.3 }
-  expensive: { model: model-expensive, max_tokens: 2500, temperature: 0.3 }
+  expensive: { model: model-expensive, max_tokens: 2500, temperature: 0.3, timeout_ms: 60000 }
 
 normalize:
   max_input_chars: 4000
