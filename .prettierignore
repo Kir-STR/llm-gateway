@@ -1,0 +1,10 @@
+node_modules
+dist
+pnpm-lock.yaml
+.glue
+.superpowers
+docs
+.claude
+AGENTS.md
+CLAUDE.md
+GEMINI.md
