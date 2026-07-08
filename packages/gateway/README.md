@@ -33,10 +33,17 @@ const llm: LlmCaller = {
   },
 };
 
-// The core does not impose an LLM-call timeout in this version. The adapter must enforce
-// its own timeout on the provider call and surface it as an `LlmCallError` with
-// `code: 'timeout'` (`retryable: false`). `signal` is reserved for a future core-managed
-// abort (stage 2).
+// The core can enforce an LLM-call timeout when configured (`llm.timeout_ms`, overridable
+// per tier via `models.<tier>.timeout_ms`). It bounds `runTurn` with an AbortController +
+// timer race and passes the `signal` to `LlmCaller.call` for cooperative cancellation; a
+// timeout is classified as `upstream_unavailable` and is NOT retried. With no timeout
+// configured, the call is made without a signal and the adapter owns its own timeout
+// (reporting it as an `LlmCallError` with `code: 'timeout'`, `retryable: false`).
+//
+// Guarantee boundary: the core guarantees a bounded `runTurn`, not actual cancellation or
+// exact cost accounting. If the adapter ignores the signal, the provider request may still
+// complete and be billed; `costUsd: 0` on a timeout means "unknown to the core", not "not
+// billed".
 
 const gateway = createGateway(config, {
   llm,
