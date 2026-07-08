@@ -8,7 +8,7 @@ export function createInjectionGuard(cfg: GuardConfig): Guard {
     name: cfg.name,
     phase: 'input',
     deterministic: true,
-    timeoutMs: cfg.timeout_ms,
+    ...(cfg.timeout_ms !== undefined ? { timeoutMs: cfg.timeout_ms } : {}),
     run(ctx): Verdict {
       const hits = matchPatterns(patterns, ctx.input.text);
       if (hits.length === 0) return { outcome: 'PASS' };

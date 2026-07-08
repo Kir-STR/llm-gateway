@@ -13,7 +13,7 @@ export function createPiiGuard(cfg: GuardConfig): Guard {
     phase: 'input',
     deterministic: true,
     transforms: true,
-    timeoutMs: cfg.timeout_ms,
+    ...(cfg.timeout_ms !== undefined ? { timeoutMs: cfg.timeout_ms } : {}),
     run(ctx): Verdict {
       let text = ctx.input.text;
       let email = false;

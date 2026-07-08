@@ -17,7 +17,7 @@ export function createLimitsGuard(cfg: GuardConfig, deps: LimitsGuardDeps): Guar
     name: cfg.name,
     phase: 'input',
     deterministic: true,
-    timeoutMs: cfg.timeout_ms,
+    ...(cfg.timeout_ms !== undefined ? { timeoutMs: cfg.timeout_ms } : {}),
     async run(): Promise<Verdict> {
       let costUsd = 0;
       try {
