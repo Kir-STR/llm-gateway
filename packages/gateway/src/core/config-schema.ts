@@ -7,7 +7,12 @@ import * as ajvFormatsNs from 'ajv-formats';
 
 const addFormats = (ajvFormatsNs as unknown as { default: (ajv: Ajv) => Ajv }).default;
 
-export type ModelTier = { model: string; max_tokens?: number; temperature?: number };
+export type ModelTier = {
+  model: string;
+  max_tokens?: number;
+  temperature?: number;
+  timeout_ms?: number;
+};
 export type PatternRule = {
   id: string;
   kind: 'substring' | 'regex';
@@ -40,6 +45,7 @@ export type RetryRule = {
 export type GatewayConfig = {
   version: string;
   models: Record<string, ModelTier>;
+  llm?: { timeout_ms?: number };
   normalize?: { max_input_chars?: number };
   guards?: { input?: GuardConfig[]; output?: GuardConfig[] };
   limits?: {
@@ -63,7 +69,18 @@ const schema = {
   required: ['version', 'models', 'routing', 'scenarios', 'templates'],
   properties: {
     version: { type: 'string' },
-    models: { type: 'object', additionalProperties: { type: 'object' } },
+    models: {
+      type: 'object',
+      additionalProperties: {
+        type: 'object',
+        properties: { timeout_ms: { type: 'integer', minimum: 1 } },
+      },
+    },
+    llm: {
+      type: 'object',
+      additionalProperties: false,
+      properties: { timeout_ms: { type: 'integer', minimum: 1 } },
+    },
     normalize: {
       type: 'object',
       additionalProperties: false,

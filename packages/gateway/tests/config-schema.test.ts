@@ -20,4 +20,25 @@ describe('validateConfig', () => {
     const { version, ...rest } = minimal;
     expect(() => validateConfig(rest)).toThrow(ConfigError);
   });
+  it('accepts llm.timeout_ms and models.*.timeout_ms', () => {
+    expect(() =>
+      validateConfig({
+        ...minimal,
+        llm: { timeout_ms: 30000 },
+        models: { cheap: { model: 'm', timeout_ms: 10000 } },
+      }),
+    ).not.toThrow();
+  });
+  it('rejects non-integer or < 1 timeout_ms (llm)', () => {
+    expect(() => validateConfig({ ...minimal, llm: { timeout_ms: 0 } })).toThrow(ConfigError);
+    expect(() => validateConfig({ ...minimal, llm: { timeout_ms: 1.5 } })).toThrow(ConfigError);
+  });
+  it('rejects bad timeout_ms on a model tier', () => {
+    expect(() =>
+      validateConfig({ ...minimal, models: { cheap: { model: 'm', timeout_ms: -5 } } }),
+    ).toThrow(ConfigError);
+  });
+  it('rejects unknown keys under llm', () => {
+    expect(() => validateConfig({ ...minimal, llm: { nope: 1 } })).toThrow(ConfigError);
+  });
 });
