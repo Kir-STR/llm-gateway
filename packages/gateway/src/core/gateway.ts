@@ -5,6 +5,7 @@ import type {
   TurnResult,
   LimitsStore,
   DailyState,
+  LlmCaller,
   LlmRequest,
   LlmResponse,
   ScenarioResult,
@@ -49,6 +50,34 @@ const utcDate = (d: Date) => d.toISOString().slice(0, 10);
 
 class BudgetExceeded extends Error {}
 class TransportExhausted extends Error {}
+class CoreTimeout extends Error {}
+
+// Bound a single LLM call: pass an AbortSignal for cooperative cancellation AND race the
+// call against a timer, so runTurn is bounded even if the adapter ignores the signal.
+async function callWithTimeout(
+  llm: LlmCaller,
+  req: LlmRequest,
+  timeoutMs: number | undefined,
+): Promise<LlmResponse> {
+  if (timeoutMs === undefined) return llm.call(req);
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new CoreTimeout());
+    }, timeoutMs);
+  });
+  // Normalize to a promise so even a (contract-violating) synchronous throw from the
+  // adapter becomes a rejection the race handles — never a timer leak or unhandled rejection.
+  const call = (async () => llm.call(req, controller.signal))();
+  call.catch(() => {}); // swallow a late rejection after the race has already timed out
+  try {
+    return await Promise.race([call, timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
 
 // Referential integrity of config-declared cross-references — runs at init so runTurn never throws on them.
 function assertReferentialIntegrity(config: GatewayConfig, deps: GatewayDeps): void {
@@ -257,6 +286,18 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
         degradeReason,
       );
 
+    // map a structured-resolution failure reason to the right stub/outcome
+    const mapStructuredFailure = (
+      reason: 'parse' | 'upstream' | 'cost_cap',
+      scenarioName: string,
+      flags: string[],
+    ): TurnResult =>
+      reason === 'cost_cap'
+        ? stub('degrade', 'rejected', scenarioName, flags, 'cost_cap')
+        : reason === 'upstream'
+          ? stub('llm_fail', 'failed', scenarioName, flags, 'upstream_unavailable')
+          : stub('parse_fail', 'failed', scenarioName, flags);
+
     // 1) normalize
     const norm = normalize(input, config.normalize?.max_input_chars);
     if (norm.reject) {
@@ -393,6 +434,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
       const tier = config.models[modelRef];
       if (!tier) throw new ConfigError(`Scenario references unknown model tier "${modelRef}"`);
       const model = tier.model;
+      const timeoutMs = tier.timeout_ms ?? config.llm?.timeout_ms;
       if (perRequestCap !== undefined) {
         const wc = worstCaseCostUsd(model, ctx.input.text.length, tier.max_tokens ?? 0, prices);
         if (wc > perRequestCap) throw new BudgetExceeded();
@@ -413,7 +455,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
         attempt++;
         const t0 = Date.now();
         try {
-          const resp = await deps.llm.call(req);
+          const resp = await callWithTimeout(deps.llm, req, timeoutMs);
           const cost = actualCostUsd(model, resp.usage, prices);
           emit(EVENTS.llmCall, {
             modelRef,
@@ -434,7 +476,9 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
           await incrementDaily(cost);
           return resp;
         } catch (err) {
-          const code = err instanceof LlmCallError ? err.code : 'unknown';
+          const isTimeout =
+            err instanceof CoreTimeout || (err instanceof LlmCallError && err.code === 'timeout');
+          const code = isTimeout ? 'timeout' : err instanceof LlmCallError ? err.code : 'unknown';
           emit(EVENTS.llmCall, {
             modelRef,
             model,
@@ -446,6 +490,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
             errorCode: code,
             costUsd: 0,
           });
+          if (isTimeout) throw new CoreTimeout(); // a timeout is never retried
           const retryable = err instanceof LlmCallError && err.retryable;
           if (retryable && attempt <= maxRetries) {
             emit(EVENTS.retry, {
@@ -465,7 +510,9 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
     const resolveStructured = async (
       first: LlmResponse,
       modelRef: string,
-    ): Promise<{ resp: LlmResponse; value: unknown } | { failed: true }> => {
+    ): Promise<
+      { resp: LlmResponse; value: unknown } | { failed: 'parse' | 'upstream' | 'cost_cap' }
+    > => {
       if (scenario.kind !== 'llm' || !scenario.structured_output)
         return { resp: first, value: undefined };
       const validate = structuredValidators.get(scenario.structured_output)!;
@@ -491,12 +538,12 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
           });
           try {
             resp = await doLlmCall(modelRef, rule?.correction_prompt, attempt);
-          } catch {
-            return { failed: true };
+          } catch (err) {
+            return { failed: err instanceof BudgetExceeded ? 'cost_cap' : 'upstream' };
           }
           continue;
         }
-        return { failed: true };
+        return { failed: 'parse' }; // schema exhaustion, no transport/timeout failure
       }
     };
 
@@ -567,7 +614,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
             return stub('llm_fail', 'failed', scenarioName, mergedFlags, 'upstream_unavailable');
           }
           const s = await resolveStructured(resp, modelRef);
-          if ('failed' in s) return stub('parse_fail', 'failed', scenarioName, mergedFlags);
+          if ('failed' in s) return mapStructuredFailure(s.failed, scenarioName, mergedFlags);
           c.output = { text: resp.text ?? '', structured: s.value };
           continue;
         }
@@ -586,7 +633,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
     }
     const structuredResult = await resolveStructured(firstResp, scenario.model);
     if ('failed' in structuredResult)
-      return stub('parse_fail', 'failed', route.scenario, agg.flags);
+      return mapStructuredFailure(structuredResult.failed, route.scenario, agg.flags);
     ctx.output = { text: structuredResult.resp.text ?? '', structured: structuredResult.value };
     return await outputStage(ctx, route.scenario, 'llm', agg.flags);
   }
