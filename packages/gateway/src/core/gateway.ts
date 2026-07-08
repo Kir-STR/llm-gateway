@@ -52,9 +52,12 @@ function assertReferentialIntegrity(config: GatewayConfig, deps: GatewayDeps): v
     if (rule.scenario) need(scenarios.has(rule.scenario), `routing targets unknown scenario "${rule.scenario}"`);
     if (rule.default) need(scenarios.has(rule.default), `routing default targets unknown scenario "${rule.default}"`);
   }
+  need(config.routing.rules.some((r) => r.default !== undefined), 'routing.rules must include a rule with "default"');
   for (const g of [...(config.guards?.input ?? []), ...(config.guards?.output ?? [])]) {
     if (typeof g.route === 'string') need(scenarios.has(g.route), `guard "${g.name}" route targets unknown scenario "${g.route}"`);
     if (typeof g.reject_template === 'string') need(templates.has(g.reject_template), `guard "${g.name}" reject_template "${g.reject_template}" is undefined`);
+    const effective = typeof g.reject_template === 'string' ? g.reject_template : DEFAULTS[g.name]?.template;
+    if (effective !== undefined) need(templates.has(effective), `guard "${g.name}" effective reject template "${effective}" is undefined`);
   }
   for (const [name, sc] of Object.entries(config.scenarios)) {
     if (sc.kind === 'llm') {

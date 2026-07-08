@@ -118,4 +118,16 @@ describe('gateway orchestration', () => {
     cfg.routing.rules = [{ default: 'does_not_exist' }];
     expect(() => createGateway(cfg, { llm: { call: async () => ok }, telemetry: nullSink })).toThrow();
   });
+
+  it('throws at init when routing has no default rule', () => {
+    const cfg = clone();
+    cfg.routing.rules = [{ when: { flags_any: ['injection'] }, scenario: 'cautious' }];
+    expect(() => createGateway(cfg, { llm: { call: async () => ok }, telemetry: nullSink })).toThrow();
+  });
+
+  it('throws at init when a guard\'s effective reject template is missing', () => {
+    const cfg = clone();
+    delete (cfg.templates as Record<string, string>).injection_reject;
+    expect(() => createGateway(cfg, { llm: { call: async () => ok }, telemetry: nullSink })).toThrow();
+  });
 });
