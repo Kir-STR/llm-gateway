@@ -2,8 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { AnthropicClientLike } from '../../src/anthropic.js';
 
 export type FakeContent = Array<
-  | { type: 'text'; text: string }
-  | { type: 'tool_use'; id: string; name: string; input: unknown }
+  { type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string; input: unknown }
 >;
 
 export type FakeUsage = {

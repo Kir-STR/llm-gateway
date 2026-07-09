@@ -23,9 +23,14 @@ const STRUCTURED_TOOL_NAME = 'emit_structured_output';
 
 function mapResponse(msg: Anthropic.Message): LlmResponse {
   const u = msg.usage;
-  const usage: LlmResponse['usage'] = { inputTokens: u.input_tokens, outputTokens: u.output_tokens };
-  if (typeof u.cache_read_input_tokens === 'number') usage.cacheReadTokens = u.cache_read_input_tokens;
-  if (typeof u.cache_creation_input_tokens === 'number') usage.cacheWriteTokens = u.cache_creation_input_tokens;
+  const usage: LlmResponse['usage'] = {
+    inputTokens: u.input_tokens,
+    outputTokens: u.output_tokens,
+  };
+  if (typeof u.cache_read_input_tokens === 'number')
+    usage.cacheReadTokens = u.cache_read_input_tokens;
+  if (typeof u.cache_creation_input_tokens === 'number')
+    usage.cacheWriteTokens = u.cache_creation_input_tokens;
 
   let text = '';
   let structured: unknown;
@@ -50,9 +55,11 @@ function mapResponse(msg: Anthropic.Message): LlmResponse {
 // no-status connection name, else unknown. So HTTP codes win over a generic class name.
 // Messages are generic — never echo provider bodies (secret hygiene).
 function classifyError(err: unknown): LlmCallError {
-  const name = typeof (err as { name?: unknown }).name === 'string' ? (err as { name: string }).name : '';
+  const name =
+    typeof (err as { name?: unknown }).name === 'string' ? (err as { name: string }).name : '';
   if (name === 'APIUserAbortError') return new LlmCallError('LLM call aborted', 'timeout', false);
-  if (name === 'APIConnectionTimeoutError') return new LlmCallError('LLM call timed out', 'timeout', false);
+  if (name === 'APIConnectionTimeoutError')
+    return new LlmCallError('LLM call timed out', 'timeout', false);
 
   const status = (err as { status?: unknown }).status;
   if (typeof status === 'number') {
@@ -64,7 +71,8 @@ function classifyError(err: unknown): LlmCallError {
       return new LlmCallError('bad request', 'bad_request', false);
   }
 
-  if (name === 'APIConnectionError') return new LlmCallError('LLM connection error', 'server', true);
+  if (name === 'APIConnectionError')
+    return new LlmCallError('LLM connection error', 'server', true);
   return new LlmCallError('unknown LLM error', 'unknown', false);
 }
 

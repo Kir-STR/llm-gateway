@@ -9,12 +9,18 @@ const baseReq: LlmRequest = { modelRef: 'fast', model: 'claude-x', input: 'hello
 describe('anthropic adapter — text path', () => {
   it('maps text blocks and usage (incl. cache tokens), sends user message + maxRetries:0', async () => {
     const { client, calls } = createFakeAnthropic([
-      makeMessage([{ type: 'text', text: 'he' }, { type: 'text', text: 'llo' }], {
-        input_tokens: 3,
-        output_tokens: 5,
-        cache_read_input_tokens: 7,
-        cache_creation_input_tokens: 9,
-      }),
+      makeMessage(
+        [
+          { type: 'text', text: 'he' },
+          { type: 'text', text: 'llo' },
+        ],
+        {
+          input_tokens: 3,
+          output_tokens: 5,
+          cache_read_input_tokens: 7,
+          cache_creation_input_tokens: 9,
+        },
+      ),
     ]);
     const caller = createAnthropicLlmCaller(client);
 
@@ -70,7 +76,9 @@ describe('anthropic adapter — request guardrails', () => {
       makeMessage([{ type: 'text', text: 'x' }], { input_tokens: 1, output_tokens: 1 }),
     ]);
     const caller = createAnthropicLlmCaller(client); // no defaultMaxTokens
-    await expect(caller.call({ modelRef: 'fast', model: 'claude-x', input: 'hi' })).rejects.toMatchObject({
+    await expect(
+      caller.call({ modelRef: 'fast', model: 'claude-x', input: 'hi' }),
+    ).rejects.toMatchObject({
       name: 'LlmCallError',
       code: 'bad_request',
       retryable: false,
@@ -83,7 +91,9 @@ describe('anthropic adapter — request guardrails', () => {
       makeMessage([{ type: 'text', text: 'x' }], { input_tokens: 1, output_tokens: 1 }),
     ]);
     const caller = createAnthropicLlmCaller(client, { defaultMaxTokens: 64 });
-    await expect(caller.call({ modelRef: 'fast', model: '', input: 'hi' })).rejects.toBeInstanceOf(LlmCallError);
+    await expect(caller.call({ modelRef: 'fast', model: '', input: 'hi' })).rejects.toBeInstanceOf(
+      LlmCallError,
+    );
     expect(calls.length).toBe(0);
   });
 });
@@ -93,7 +103,10 @@ describe('anthropic adapter — correction & temperature', () => {
     const { client, calls } = createFakeAnthropic([
       makeMessage([{ type: 'text', text: 'x' }], { input_tokens: 1, output_tokens: 1 }),
     ]);
-    await createAnthropicLlmCaller(client).call({ ...baseReq, correction: 'Fix the output to match the schema.' });
+    await createAnthropicLlmCaller(client).call({
+      ...baseReq,
+      correction: 'Fix the output to match the schema.',
+    });
     expect(calls[0]?.body.system).toBe('Fix the output to match the schema.');
   });
 
@@ -115,7 +128,11 @@ describe('anthropic adapter — correction & temperature', () => {
 });
 
 describe('anthropic adapter — structured (forced tool use)', () => {
-  const schema = { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] };
+  const schema = {
+    type: 'object',
+    properties: { answer: { type: 'string' } },
+    required: ['answer'],
+  };
 
   it('forces a single tool and extracts tool_use.input into structured', async () => {
     const { client, calls } = createFakeAnthropic([
