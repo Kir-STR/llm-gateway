@@ -87,3 +87,29 @@ describe('anthropic adapter — request guardrails', () => {
     expect(calls.length).toBe(0);
   });
 });
+
+describe('anthropic adapter — correction & temperature', () => {
+  it('maps req.correction to top-level system', async () => {
+    const { client, calls } = createFakeAnthropic([
+      makeMessage([{ type: 'text', text: 'x' }], { input_tokens: 1, output_tokens: 1 }),
+    ]);
+    await createAnthropicLlmCaller(client).call({ ...baseReq, correction: 'Fix the output to match the schema.' });
+    expect(calls[0]?.body.system).toBe('Fix the output to match the schema.');
+  });
+
+  it('omits system when there is no correction', async () => {
+    const { client, calls } = createFakeAnthropic([
+      makeMessage([{ type: 'text', text: 'x' }], { input_tokens: 1, output_tokens: 1 }),
+    ]);
+    await createAnthropicLlmCaller(client).call(baseReq);
+    expect(calls[0]?.body.system).toBeUndefined();
+  });
+
+  it('passes temperature through when set', async () => {
+    const { client, calls } = createFakeAnthropic([
+      makeMessage([{ type: 'text', text: 'x' }], { input_tokens: 1, output_tokens: 1 }),
+    ]);
+    await createAnthropicLlmCaller(client).call({ ...baseReq, temperature: 0.2 });
+    expect(calls[0]?.body.temperature).toBe(0.2);
+  });
+});

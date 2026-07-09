@@ -66,6 +66,8 @@ export function createAnthropicLlmCaller(
         max_tokens: maxTokens,
         messages: [{ role: 'user', content: req.input }],
       };
+      if (req.correction !== undefined) body.system = req.correction;
+      if (req.temperature !== undefined) body.temperature = req.temperature;
 
       const options: Anthropic.RequestOptions = { maxRetries: 0 };
       if (signal !== undefined) options.signal = signal;
