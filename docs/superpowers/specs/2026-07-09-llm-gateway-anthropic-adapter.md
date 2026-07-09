@@ -136,7 +136,7 @@ tool_choice: { type: 'tool', name: 'emit_structured_output' }
 | `status === 400` / `404` / `413` | `bad_request` | ❌ |
 | прочее / не-API throw | `unknown` | ❌ |
 
-Порядок проверки: сначала три ошибки без `status` по `err.name` (`APIUserAbortError`, `APIConnectionTimeoutError`, `APIConnectionError` — они никогда не несут числовой `status`, поэтому по `status`-ветке не поймаются), затем ветвление по числовому `status` (429 / 529 / ≥500 / 401 / 403 / 400 / 404 / 413), иначе `unknown`. Порядок строк в таблице выше — для читаемости; логика однозначна: no-status-имена → числовой `status` → `unknown`, так что HTTP-коды (429/529/…) сохраняются независимо от того, насколько «общее» имя у SDK-класса. `timeout` не ретраится ядром by design; согласуется с `gateway.ts:479` (`isTimeout`).
+Порядок проверки (устойчив к ошибкам с несколькими признаками): (1) `APIUserAbortError` / `APIConnectionTimeoutError` по `err.name` — всегда терминальны (`timeout`, non-retryable), их не перебивает никакой `status`; (2) числовой `err.status` — авторитетный сигнал (наличие HTTP-статуса = реальный ответ сервера): 429 / 529 / ≥500 / 401 / 403 / 400 / 404 / 413; (3) `APIConnectionError` по `err.name` — транспортный сбой без статуса (`server`, retryable); (4) иначе `unknown`. Такой порядок гарантирует, что HTTP-коды (429/529/…) сохраняются, даже если ошибка несёт и «общее» имя SDK-класса, и `status`. Порядок строк в таблице выше — для читаемости. `timeout` не ретраится ядром by design; согласуется с `gateway.ts:479` (`isTimeout`).
 
 ## 10. Тест-план (юнит, без живого API-ключа; fake `AnthropicClientLike`)
 
