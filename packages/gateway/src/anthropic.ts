@@ -44,6 +44,30 @@ function mapResponse(msg: Anthropic.Message): LlmResponse {
   return res;
 }
 
+// Duck-typed: no instanceof, no SDK value import. Order matters for errors that could
+// carry more than one signal: abort/timeout by name first (always terminal), then numeric
+// `status` (authoritative — an HTTP status means a real server response), then the
+// no-status connection name, else unknown. So HTTP codes win over a generic class name.
+// Messages are generic — never echo provider bodies (secret hygiene).
+function classifyError(err: unknown): LlmCallError {
+  const name = typeof (err as { name?: unknown }).name === 'string' ? (err as { name: string }).name : '';
+  if (name === 'APIUserAbortError') return new LlmCallError('LLM call aborted', 'timeout', false);
+  if (name === 'APIConnectionTimeoutError') return new LlmCallError('LLM call timed out', 'timeout', false);
+
+  const status = (err as { status?: unknown }).status;
+  if (typeof status === 'number') {
+    if (status === 429) return new LlmCallError('rate limited', 'rate_limit', true);
+    if (status === 529) return new LlmCallError('overloaded', 'overloaded', true);
+    if (status >= 500) return new LlmCallError('server error', 'server', true);
+    if (status === 401 || status === 403) return new LlmCallError('auth error', 'auth', false);
+    if (status === 400 || status === 404 || status === 413)
+      return new LlmCallError('bad request', 'bad_request', false);
+  }
+
+  if (name === 'APIConnectionError') return new LlmCallError('LLM connection error', 'server', true);
+  return new LlmCallError('unknown LLM error', 'unknown', false);
+}
+
 export function createAnthropicLlmCaller(
   client: AnthropicClientLike,
   opts?: AnthropicCallerOptions,
@@ -82,7 +106,12 @@ export function createAnthropicLlmCaller(
       const options: Anthropic.RequestOptions = { maxRetries: 0 };
       if (signal !== undefined) options.signal = signal;
 
-      const msg = await client.messages.create(body, options);
+      let msg: Anthropic.Message;
+      try {
+        msg = await client.messages.create(body, options);
+      } catch (err) {
+        throw classifyError(err);
+      }
       return mapResponse(msg);
     },
   };

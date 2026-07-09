@@ -154,3 +154,53 @@ describe('anthropic adapter — structured (forced tool use)', () => {
     expect(calls[0]?.body.tool_choice).toBeUndefined();
   });
 });
+
+describe('anthropic adapter — error classification', () => {
+  function withStatus(status: number): Error {
+    const e = new Error('provider error');
+    (e as unknown as { status: number }).status = status;
+    return e;
+  }
+  function withName(name: string): Error {
+    const e = new Error('provider error');
+    e.name = name;
+    return e;
+  }
+
+  const cases: Array<[Error, string, boolean]> = [
+    [withStatus(429), 'rate_limit', true],
+    [withStatus(529), 'overloaded', true],
+    [withStatus(500), 'server', true],
+    [withStatus(503), 'server', true],
+    [withName('APIConnectionError'), 'server', true],
+    [withName('APIConnectionTimeoutError'), 'timeout', false],
+    [withName('APIUserAbortError'), 'timeout', false],
+    [withStatus(401), 'auth', false],
+    [withStatus(403), 'auth', false],
+    [withStatus(400), 'bad_request', false],
+    [withStatus(404), 'bad_request', false],
+    [withStatus(413), 'bad_request', false],
+    [new Error('weird'), 'unknown', false],
+  ];
+
+  it.each(cases)('maps %o -> code/retryable', async (thrown, code, retryable) => {
+    const { client } = createFakeAnthropic([thrown]);
+    await expect(createAnthropicLlmCaller(client).call(baseReq)).rejects.toMatchObject({
+      name: 'LlmCallError',
+      code,
+      retryable,
+    });
+  });
+
+  it('prefers numeric status over a generic connection name', async () => {
+    const e = new Error('provider error');
+    e.name = 'APIConnectionError';
+    (e as unknown as { status: number }).status = 429;
+    const { client } = createFakeAnthropic([e]);
+    await expect(createAnthropicLlmCaller(client).call(baseReq)).rejects.toMatchObject({
+      name: 'LlmCallError',
+      code: 'rate_limit',
+      retryable: true,
+    });
+  });
+});
