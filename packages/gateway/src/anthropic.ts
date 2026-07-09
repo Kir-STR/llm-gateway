@@ -1,6 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { LlmCaller, LlmRequest, LlmResponse } from './core/types.js';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- wired up by the Task 3 pre-network guard
 import { LlmCallError } from './core/types.js';
 
 // Minimal structural surface the adapter depends on. A real `Anthropic` client
@@ -51,9 +50,20 @@ export function createAnthropicLlmCaller(
 ): LlmCaller {
   return {
     async call(req: LlmRequest, signal?: AbortSignal): Promise<LlmResponse> {
+      if (!req.model) {
+        throw new LlmCallError('Missing req.model', 'bad_request', false);
+      }
+      const maxTokens = req.maxTokens ?? opts?.defaultMaxTokens;
+      if (maxTokens === undefined) {
+        throw new LlmCallError(
+          'max_tokens is required: set req.maxTokens or AnthropicCallerOptions.defaultMaxTokens',
+          'bad_request',
+          false,
+        );
+      }
       const body: Anthropic.MessageCreateParamsNonStreaming = {
         model: req.model,
-        max_tokens: req.maxTokens ?? opts?.defaultMaxTokens ?? 0, // guarded in Task 3
+        max_tokens: maxTokens,
         messages: [{ role: 'user', content: req.input }],
       };
 

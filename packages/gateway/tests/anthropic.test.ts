@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { LlmRequest } from '../src/core/types.js';
+import { LlmCallError } from '../src/core/types.js';
 import { createAnthropicLlmCaller } from '../src/anthropic.js';
 import { createFakeAnthropic, makeMessage } from './fixtures/fake-anthropic.js';
 
@@ -51,5 +52,38 @@ describe('anthropic adapter — text path', () => {
     ]);
     const res = await createAnthropicLlmCaller(client).call(baseReq);
     expect(res.usage).toEqual({ inputTokens: 1, outputTokens: 2 });
+  });
+});
+
+describe('anthropic adapter — request guardrails', () => {
+  it('uses defaultMaxTokens when req.maxTokens is absent', async () => {
+    const { client, calls } = createFakeAnthropic([
+      makeMessage([{ type: 'text', text: 'x' }], { input_tokens: 1, output_tokens: 1 }),
+    ]);
+    const caller = createAnthropicLlmCaller(client, { defaultMaxTokens: 512 });
+    await caller.call({ modelRef: 'fast', model: 'claude-x', input: 'hi' });
+    expect(calls[0]?.body.max_tokens).toBe(512);
+  });
+
+  it('throws bad_request without hitting the network when max_tokens is unresolved', async () => {
+    const { client, calls } = createFakeAnthropic([
+      makeMessage([{ type: 'text', text: 'x' }], { input_tokens: 1, output_tokens: 1 }),
+    ]);
+    const caller = createAnthropicLlmCaller(client); // no defaultMaxTokens
+    await expect(caller.call({ modelRef: 'fast', model: 'claude-x', input: 'hi' })).rejects.toMatchObject({
+      name: 'LlmCallError',
+      code: 'bad_request',
+      retryable: false,
+    });
+    expect(calls.length).toBe(0);
+  });
+
+  it('throws bad_request without hitting the network when model is empty', async () => {
+    const { client, calls } = createFakeAnthropic([
+      makeMessage([{ type: 'text', text: 'x' }], { input_tokens: 1, output_tokens: 1 }),
+    ]);
+    const caller = createAnthropicLlmCaller(client, { defaultMaxTokens: 64 });
+    await expect(caller.call({ modelRef: 'fast', model: '', input: 'hi' })).rejects.toBeInstanceOf(LlmCallError);
+    expect(calls.length).toBe(0);
   });
 });
