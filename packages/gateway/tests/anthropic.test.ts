@@ -113,3 +113,44 @@ describe('anthropic adapter — correction & temperature', () => {
     expect(calls[0]?.body.temperature).toBe(0.2);
   });
 });
+
+describe('anthropic adapter — structured (forced tool use)', () => {
+  const schema = { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] };
+
+  it('forces a single tool and extracts tool_use.input into structured', async () => {
+    const { client, calls } = createFakeAnthropic([
+      makeMessage(
+        [{ type: 'tool_use', id: 't1', name: 'emit_structured_output', input: { answer: 'a' } }],
+        { input_tokens: 2, output_tokens: 3 },
+      ),
+    ]);
+    const res = await createAnthropicLlmCaller(client).call({ ...baseReq, toolSchema: schema });
+
+    expect(calls[0]?.body.tools).toEqual([
+      {
+        name: 'emit_structured_output',
+        description: expect.any(String),
+        input_schema: schema,
+      },
+    ]);
+    expect(calls[0]?.body.tool_choice).toEqual({ type: 'tool', name: 'emit_structured_output' });
+    expect(res.structured).toEqual({ answer: 'a' });
+  });
+
+  it('leaves structured undefined when the model returns no matching tool_use block', async () => {
+    const { client } = createFakeAnthropic([
+      makeMessage([{ type: 'text', text: 'sorry' }], { input_tokens: 1, output_tokens: 1 }),
+    ]);
+    const res = await createAnthropicLlmCaller(client).call({ ...baseReq, toolSchema: schema });
+    expect(res.structured).toBeUndefined();
+  });
+
+  it('does not send tools when toolSchema is absent', async () => {
+    const { client, calls } = createFakeAnthropic([
+      makeMessage([{ type: 'text', text: 'x' }], { input_tokens: 1, output_tokens: 1 }),
+    ]);
+    await createAnthropicLlmCaller(client).call(baseReq);
+    expect(calls[0]?.body.tools).toBeUndefined();
+    expect(calls[0]?.body.tool_choice).toBeUndefined();
+  });
+});

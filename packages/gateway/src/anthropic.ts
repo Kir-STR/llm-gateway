@@ -68,6 +68,16 @@ export function createAnthropicLlmCaller(
       };
       if (req.correction !== undefined) body.system = req.correction;
       if (req.temperature !== undefined) body.temperature = req.temperature;
+      if (req.toolSchema !== undefined) {
+        body.tools = [
+          {
+            name: STRUCTURED_TOOL_NAME,
+            description: 'Return the result strictly matching the provided JSON schema.',
+            input_schema: req.toolSchema as Anthropic.Tool.InputSchema,
+          },
+        ];
+        body.tool_choice = { type: 'tool', name: STRUCTURED_TOOL_NAME };
+      }
 
       const options: Anthropic.RequestOptions = { maxRetries: 0 };
       if (signal !== undefined) options.signal = signal;
