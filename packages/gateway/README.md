@@ -292,6 +292,36 @@ map onto spans/generations) can be added without changing the interface.
 - `createJsonlSink(dir)` — `TelemetrySink` that appends JSONL, rotated daily.
 - `createFileLimitsStore(path)` — file-backed `LimitsStore`.
 
+## Optional Anthropic adapter (`@kir-str/llm-gateway/anthropic`)
+
+The Anthropic `LlmCaller` is shipped as an optional subpath export. `@anthropic-ai/sdk`
+is an optional peer dependency — install it alongside the package and inject a client:
+
+```bash
+pnpm add @kir-str/llm-gateway @anthropic-ai/sdk
+```
+
+```ts
+import Anthropic from '@anthropic-ai/sdk';
+import { createGateway } from '@kir-str/llm-gateway';
+import { createAnthropicLlmCaller } from '@kir-str/llm-gateway/anthropic';
+
+// The core owns retry and timeout policy — disable the SDK's own retries.
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: 0 });
+const llm = createAnthropicLlmCaller(client, { defaultMaxTokens: 1024 });
+
+const gateway = createGateway(config, { llm, telemetry });
+```
+
+Notes:
+
+- The adapter never constructs a client, reads no environment variables, and owns no
+  retry/timeout — configure those on the injected `Anthropic` client.
+- Structured output uses forced tool use (`emit_structured_output`); the core validates
+  the result and drives correction retries.
+- The base entry points (`.`, `./node`) do not import the SDK; only this subpath does,
+  and only as a type — the built package has no runtime dependency on `@anthropic-ai/sdk`.
+
 ## License
 
 MIT — see [LICENSE](../../LICENSE).
