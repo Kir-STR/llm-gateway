@@ -40,6 +40,7 @@ function mapResponse(msg: Anthropic.Message): LlmResponse {
     else if (block.type === 'tool_use' && block.name === STRUCTURED_TOOL_NAME) {
       structured = block.input;
       hasStructured = true;
+      break; // spec §6: first matching tool_use wins
     }
   }
 
@@ -55,10 +56,18 @@ function mapResponse(msg: Anthropic.Message): LlmResponse {
 // no-status connection name, else unknown. So HTTP codes win over a generic class name.
 // Messages are generic — never echo provider bodies (secret hygiene).
 function classifyError(err: unknown): LlmCallError {
-  const name =
-    typeof (err as { name?: unknown }).name === 'string' ? (err as { name: string }).name : '';
-  if (name === 'APIUserAbortError') return new LlmCallError('LLM call aborted', 'timeout', false);
-  if (name === 'APIConnectionTimeoutError')
+  // The real SDK error classes (APIUserAbortError, APIConnectionTimeoutError,
+  // APIConnectionError) never set `this.name` — instances inherit
+  // `Error.prototype.name === 'Error'`. The class name only survives on
+  // `err.constructor.name`. Check both so real SDK instances match here
+  // (and so a plain `{ name: '...' }` shape, as used in tests, still works too).
+  const e = err as { name?: unknown; constructor?: { name?: unknown } };
+  const nm = typeof e.name === 'string' ? e.name : '';
+  const ctor = typeof e.constructor?.name === 'string' ? e.constructor.name : '';
+  const isErr = (n: string) => nm === n || ctor === n;
+
+  if (isErr('APIUserAbortError')) return new LlmCallError('LLM call aborted', 'timeout', false);
+  if (isErr('APIConnectionTimeoutError'))
     return new LlmCallError('LLM call timed out', 'timeout', false);
 
   const status = (err as { status?: unknown }).status;
@@ -71,8 +80,7 @@ function classifyError(err: unknown): LlmCallError {
       return new LlmCallError('bad request', 'bad_request', false);
   }
 
-  if (name === 'APIConnectionError')
-    return new LlmCallError('LLM connection error', 'server', true);
+  if (isErr('APIConnectionError')) return new LlmCallError('LLM connection error', 'server', true);
   return new LlmCallError('unknown LLM error', 'unknown', false);
 }
 

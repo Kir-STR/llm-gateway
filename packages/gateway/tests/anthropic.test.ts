@@ -1,4 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import {
+  APIConnectionError,
+  APIConnectionTimeoutError,
+  APIUserAbortError,
+} from '@anthropic-ai/sdk';
 import type { LlmRequest } from '../src/core/types.js';
 import { LlmCallError } from '../src/core/types.js';
 import { createAnthropicLlmCaller } from '../src/anthropic.js';
@@ -125,6 +130,14 @@ describe('anthropic adapter — correction & temperature', () => {
     await createAnthropicLlmCaller(client).call({ ...baseReq, temperature: 0.2 });
     expect(calls[0]?.body.temperature).toBe(0.2);
   });
+
+  it('omits temperature when not set', async () => {
+    const { client, calls } = createFakeAnthropic([
+      makeMessage([{ type: 'text', text: 'x' }], { input_tokens: 1, output_tokens: 1 }),
+    ]);
+    await createAnthropicLlmCaller(client).call(baseReq);
+    expect(calls[0]?.body.temperature).toBeUndefined();
+  });
 });
 
 describe('anthropic adapter — structured (forced tool use)', () => {
@@ -218,6 +231,41 @@ describe('anthropic adapter — error classification', () => {
       name: 'LlmCallError',
       code: 'rate_limit',
       retryable: true,
+    });
+  });
+
+  // Real SDK error instances leave `.name === 'Error'` (see the comment on
+  // classifyError) — the class name only lives on `.constructor.name`. These
+  // guard against classification silently going dead again if the SDK ever
+  // changes (or someone "simplifies" classifyError back to `.name`-only).
+  describe('against real @anthropic-ai/sdk error instances', () => {
+    it('classifies a real APIConnectionError as server/retryable', async () => {
+      const { client } = createFakeAnthropic([
+        new APIConnectionError({ message: 'Connection error.' }),
+      ]);
+      await expect(createAnthropicLlmCaller(client).call(baseReq)).rejects.toMatchObject({
+        name: 'LlmCallError',
+        code: 'server',
+        retryable: true,
+      });
+    });
+
+    it('classifies a real APIConnectionTimeoutError as timeout/non-retryable', async () => {
+      const { client } = createFakeAnthropic([new APIConnectionTimeoutError()]);
+      await expect(createAnthropicLlmCaller(client).call(baseReq)).rejects.toMatchObject({
+        name: 'LlmCallError',
+        code: 'timeout',
+        retryable: false,
+      });
+    });
+
+    it('classifies a real APIUserAbortError as timeout/non-retryable', async () => {
+      const { client } = createFakeAnthropic([new APIUserAbortError()]);
+      await expect(createAnthropicLlmCaller(client).call(baseReq)).rejects.toMatchObject({
+        name: 'LlmCallError',
+        code: 'timeout',
+        retryable: false,
+      });
     });
   });
 });
