@@ -47,12 +47,12 @@ export type LlmResponse = {
 
 export interface LlmCaller {
   /**
-   * Single, thin call to the provider. The adapter MUST enforce its own
-   * call-duration timeout and report a timeout as an `LlmCallError` with
-   * `code: 'timeout'` (`retryable: false`). The core classifies errors and
-   * does not retry timeouts, but does not impose an LLM-call timeout itself.
-   * `signal` is reserved for future core-managed abort (a stage-2 enhancement
-   * landing with the real provider adapter).
+   * Single, thin call to the provider. The core owns retry and timeout policy:
+   * when a per-turn timeout is configured it races the call and aborts via `signal`
+   * (see `callWithTimeout` in gateway.ts). The adapter enforces no timeout of its own —
+   * a transport backstop is the injected provider client's own timeout. The adapter must
+   * pass `signal` through to the provider and report provider failures as `LlmCallError`
+   * (timeouts/aborts as `code: 'timeout'`, `retryable: false`; the core does not retry them).
    */
   call(req: LlmRequest, signal?: AbortSignal): Promise<LlmResponse>;
 }
