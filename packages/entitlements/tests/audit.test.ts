@@ -109,6 +109,22 @@ describe('audit', () => {
     expect(thunk).not.toHaveBeenCalled();
   });
 
+  it('best-effort: a rejected sink promise does not change an allowed access', async () => {
+    const ent = bindScope(
+      {},
+      {
+        canAccess: () => true,
+        audit: {
+          record: async () => {
+            throw new Error('sink down');
+          },
+        },
+      },
+    );
+    const out = await ent.access({ id: 1 }, 'read', async () => 'DATA');
+    expect(out).toBe('DATA');
+  });
+
   it('omits scopeLabel from the entry when no scopeLabel is configured', async () => {
     const audit = recorder<{ id: number }, string>();
     const ent = bindScope({}, { canAccess: () => true, audit });

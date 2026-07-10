@@ -34,7 +34,7 @@ export function bindScope<S, R = unknown, O = string>(
         await emit('deny', resource, operation, 'policy_error');
         throw new EntitlementsDenied('policy_error', operation, { cause });
       }
-      if (!allowed) {
+      if (allowed !== true) {
         await emit('deny', resource, operation, 'policy_denied');
         throw new EntitlementsDenied('policy_denied', operation);
       }

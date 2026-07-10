@@ -33,6 +33,7 @@ const doc = await ent.access({ kind: 'doc', id: 'doc-1' }, 'read', () => getDoc(
 - `resource` is project-defined; **masking `resource` in audit is the responsibility of your `AuditSink`** — the package does not guess what is sensitive.
 - `EntitlementsDenied.cause` (from a throwing `canAccess`) is **not** sanitized by the package; the package only guarantees it never adds `scope`/`resource` itself.
 - Audit is best-effort: a sink failure never changes the allow/deny decision.
+- `policy.scopeLabel` is evaluated once, at `bindScope` time (the trusted server boundary) — it must be total (must not throw); a throwing `scopeLabel` surfaces from `bindScope`, before any `access` call.
 
 ## v1 scope
 
