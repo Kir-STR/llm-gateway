@@ -7,7 +7,12 @@ export function bindScope<S, R = unknown, O = string>(
 ): Entitlements<R, O> {
   return {
     async access<T>(resource: R, operation: O, thunk: () => Promise<T> | T): Promise<T> {
-      const allowed = await policy.canAccess(scope, resource, operation);
+      let allowed: boolean;
+      try {
+        allowed = await policy.canAccess(scope, resource, operation);
+      } catch (cause) {
+        throw new EntitlementsDenied('policy_error', operation, { cause });
+      }
       if (!allowed) {
         throw new EntitlementsDenied('policy_denied', operation);
       }
