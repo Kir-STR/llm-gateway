@@ -322,6 +322,36 @@ Notes:
 - The base entry points (`.`, `./node`) do not import the SDK; only this subpath does,
   and only as a type — the built package has no runtime dependency on `@anthropic-ai/sdk`.
 
+## Optional Langfuse observability adapter (`@kir-str/llm-gateway/langfuse`)
+
+A Langfuse `TelemetrySink` is shipped as an optional subpath export. `langfuse` is an
+optional peer dependency; base entry points do not import it (built package has no runtime
+dependency on `langfuse`).
+
+```bash
+pnpm add @kir-str/llm-gateway langfuse
+```
+
+```ts
+import { Langfuse } from 'langfuse';
+import { createGateway } from '@kir-str/llm-gateway';
+import { createLangfuseSink } from '@kir-str/llm-gateway/langfuse';
+
+const langfuse = new Langfuse({ publicKey, secretKey, baseUrl });
+const telemetry = createLangfuseSink(langfuse);
+
+const gateway = createGateway(config, { llm, telemetry });
+// ... run turns ...
+await langfuse.shutdownAsync(); // the consumer owns flush/shutdown
+```
+
+- Each turn (`traceId`) becomes a Langfuse trace; each `llm_call` becomes a generation
+  (model, token usage, cost, latency). The turn outcome/flags/totals land on the trace.
+- v1 maps only `turn_started` / `llm_call` / `turn_completed`; other events are ignored.
+- Whitelist-only: the sink never forwards raw `TelemetryEvent.data`; `guard_result.evidence`
+  and `structured_parse.detail` and prompt/completion text never reach Langfuse.
+- The consumer constructs and owns the client (env, `flush`/`shutdown`); the sink does not.
+
 ## License
 
 MIT — see [LICENSE](../../LICENSE).
