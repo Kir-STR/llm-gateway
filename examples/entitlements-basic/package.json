@@ -1,0 +1,11 @@
+{
+  "name": "example-entitlements-basic",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types run.ts"
+  },
+  "dependencies": {
+    "@kir-str/entitlements": "workspace:*"
+  }
+}

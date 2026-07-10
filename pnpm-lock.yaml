@@ -27,11 +27,19 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.20.1)
 
+  examples/entitlements-basic:
+    dependencies:
+      '@kir-str/entitlements':
+        specifier: workspace:*
+        version: link:../../packages/entitlements
+
   examples/minimal:
     dependencies:
       '@kir-str/llm-gateway':
         specifier: workspace:*
         version: link:../../packages/gateway
+
+  packages/entitlements: {}
 
   packages/gateway:
     dependencies:
