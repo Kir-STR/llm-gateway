@@ -14,7 +14,9 @@ async function fakeGetDoc(id: string): Promise<string> {
 const audit = {
   record(e: AuditEntry<Resource, string>) {
     const reason = e.reason ? ` (${e.reason})` : '';
-    console.log(`[audit] ${e.decision} ${e.operation} ${e.resource.id} tenant=${e.scopeLabel ?? '-'}${reason}`);
+    console.log(
+      `[audit] ${e.decision} ${e.operation} ${e.resource.id} tenant=${e.scopeLabel ?? '-'}${reason}`,
+    );
   },
 };
 

@@ -4,7 +4,9 @@
   "description": "Server-bound scope chokepoint for project-owned data/tool access",
   "license": "MIT",
   "type": "module",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

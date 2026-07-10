@@ -14,7 +14,9 @@ describe('bindScope / access', () => {
     const ent = bindScope({ tenant: 't1' }, { canAccess: () => false });
     const thunk = vi.fn(async () => 'DATA');
     await expect(ent.access({ id: 1 }, 'read', thunk)).rejects.toBeInstanceOf(EntitlementsDenied);
-    await expect(ent.access({ id: 1 }, 'read', thunk)).rejects.toMatchObject({ reason: 'policy_denied' });
+    await expect(ent.access({ id: 1 }, 'read', thunk)).rejects.toMatchObject({
+      reason: 'policy_denied',
+    });
     expect(thunk).not.toHaveBeenCalled();
   });
 });
