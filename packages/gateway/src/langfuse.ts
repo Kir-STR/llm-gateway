@@ -48,7 +48,9 @@ export function createLangfuseSink(
   client: LangfuseClientLike,
   options: LangfuseSinkOptions = {},
 ): TelemetrySink {
+  const now = options.now ?? ((): Date => new Date());
   const traceName = options.traceName ?? 'llm-gateway turn';
+  const generationName = options.generationName ?? 'llm call';
   const open = new Map<string, LangfuseTraceLike>();
 
   function getOrCreate(traceId: string): LangfuseTraceLike | undefined {
@@ -61,8 +63,12 @@ export function createLangfuseSink(
 
   return {
     event(e: TelemetryEvent): void {
-      if (e.event !== EVENTS.turnStarted && e.event !== EVENTS.turnCompleted) {
-        return; // v1 core events; llm_call added in Task 2, all others ignored
+      if (
+        e.event !== EVENTS.turnStarted &&
+        e.event !== EVENTS.llmCall &&
+        e.event !== EVENTS.turnCompleted
+      ) {
+        return; // v1: only the three core events; all others ignored
       }
       const trace = getOrCreate(e.traceId);
       if (!trace) return;
@@ -72,6 +78,32 @@ export function createLangfuseSink(
         callClient(() =>
           trace.update({ metadata: { inputLen: d.inputLen, configVersion: e.configVersion } }),
         );
+        return;
+      }
+
+      if (e.event === EVENTS.llmCall) {
+        const endTime = now();
+        const latencyMs = typeof d.latencyMs === 'number' ? d.latencyMs : 0;
+        const usageDetails: Record<string, number> = {};
+        if (typeof d.inTokens === 'number') usageDetails.input = d.inTokens;
+        if (typeof d.outTokens === 'number') usageDetails.output = d.outTokens;
+        if (typeof d.cacheReadTokens === 'number') usageDetails.cache_read = d.cacheReadTokens;
+        if (typeof d.cacheWriteTokens === 'number') usageDetails.cache_write = d.cacheWriteTokens;
+        const body: Parameters<LangfuseTraceLike['generation']>[0] = {
+          name: generationName,
+          usageDetails,
+          startTime: new Date(endTime.getTime() - latencyMs),
+          endTime,
+          metadata: {
+            modelRef: d.modelRef,
+            attempt: d.attempt,
+            outcome: d.outcome,
+            errorCode: d.errorCode,
+          },
+        };
+        if (typeof d.model === 'string') body.model = d.model;
+        if (typeof d.costUsd === 'number') body.costDetails = { total: d.costUsd };
+        callClient(() => trace.generation(body));
         return;
       }
 

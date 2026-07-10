@@ -72,3 +72,64 @@ describe('createLangfuseSink — trace lifecycle', () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe('createLangfuseSink — llm_call generation', () => {
+  const fixedNow = new Date('2026-07-10T12:00:00.000Z');
+
+  it('maps llm_call to a generation with usageDetails, costDetails, model and deterministic timestamps', () => {
+    const { client, calls } = fakeClient();
+    const sink = createLangfuseSink(client, { now: () => fixedNow });
+    sink.event(ev('turn_started', 't1', { inputLen: 3 }));
+    sink.event(
+      ev('llm_call', 't1', {
+        modelRef: 'primary',
+        model: 'claude-x',
+        attempt: 1,
+        inTokens: 100,
+        outTokens: 40,
+        latencyMs: 250,
+        outcome: 'ok',
+        costUsd: 0.0021,
+      }),
+    );
+    const gen = calls.find((c) => c.method === 'generation');
+    expect(gen).toBeDefined();
+    expect(gen!.body).toMatchObject({
+      name: 'llm call',
+      model: 'claude-x',
+      usageDetails: { input: 100, output: 40 },
+      costDetails: { total: 0.0021 },
+      startTime: new Date(fixedNow.getTime() - 250),
+      endTime: fixedNow,
+      metadata: { modelRef: 'primary', attempt: 1, outcome: 'ok' },
+    });
+  });
+
+  it('includes cache token counts in usageDetails when present', () => {
+    const { client, calls } = fakeClient();
+    const sink = createLangfuseSink(client, { now: () => fixedNow });
+    sink.event(
+      ev('llm_call', 't1', {
+        model: 'm',
+        inTokens: 10,
+        outTokens: 2,
+        cacheReadTokens: 7,
+        cacheWriteTokens: 3,
+        latencyMs: 5,
+        outcome: 'ok',
+        costUsd: 0,
+      }),
+    );
+    const gen = calls.find((c) => c.method === 'generation');
+    expect(gen!.body.usageDetails).toEqual({ input: 10, output: 2, cache_read: 7, cache_write: 3 });
+  });
+
+  it('emits one generation per llm_call under a single trace', () => {
+    const { client, calls } = fakeClient();
+    const sink = createLangfuseSink(client, { now: () => fixedNow });
+    sink.event(ev('llm_call', 't1', { model: 'm', inTokens: 1, outTokens: 1, latencyMs: 1, outcome: 'ok', costUsd: 0 }));
+    sink.event(ev('llm_call', 't1', { model: 'm', inTokens: 1, outTokens: 1, latencyMs: 1, outcome: 'ok', costUsd: 0 }));
+    expect(calls.filter((c) => c.method === 'trace')).toHaveLength(1);
+    expect(calls.filter((c) => c.method === 'generation')).toHaveLength(2);
+  });
+});
