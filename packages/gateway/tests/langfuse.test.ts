@@ -127,8 +127,26 @@ describe('createLangfuseSink — llm_call generation', () => {
   it('emits one generation per llm_call under a single trace', () => {
     const { client, calls } = fakeClient();
     const sink = createLangfuseSink(client, { now: () => fixedNow });
-    sink.event(ev('llm_call', 't1', { model: 'm', inTokens: 1, outTokens: 1, latencyMs: 1, outcome: 'ok', costUsd: 0 }));
-    sink.event(ev('llm_call', 't1', { model: 'm', inTokens: 1, outTokens: 1, latencyMs: 1, outcome: 'ok', costUsd: 0 }));
+    sink.event(
+      ev('llm_call', 't1', {
+        model: 'm',
+        inTokens: 1,
+        outTokens: 1,
+        latencyMs: 1,
+        outcome: 'ok',
+        costUsd: 0,
+      }),
+    );
+    sink.event(
+      ev('llm_call', 't1', {
+        model: 'm',
+        inTokens: 1,
+        outTokens: 1,
+        latencyMs: 1,
+        outcome: 'ok',
+        costUsd: 0,
+      }),
+    );
     expect(calls.filter((c) => c.method === 'trace')).toHaveLength(1);
     expect(calls.filter((c) => c.method === 'generation')).toHaveLength(2);
   });
@@ -147,7 +165,16 @@ describe('createLangfuseSink — robustness & hygiene', () => {
     const sink = createLangfuseSink(client, { now: () => new Date('2026-07-10T00:00:00Z') });
     expect(() => {
       sink.event(ev('turn_started', 't1', { inputLen: 1 }));
-      sink.event(ev('llm_call', 't1', { model: 'm', inTokens: 1, outTokens: 1, latencyMs: 1, outcome: 'ok', costUsd: 0 }));
+      sink.event(
+        ev('llm_call', 't1', {
+          model: 'm',
+          inTokens: 1,
+          outTokens: 1,
+          latencyMs: 1,
+          outcome: 'ok',
+          costUsd: 0,
+        }),
+      );
       sink.event(ev('turn_completed', 't1', { outcome: 'delivered', flags: [] }));
     }).not.toThrow();
     // if callClient failed to attach .catch(), vitest would report an unhandled rejection here
@@ -168,7 +195,13 @@ describe('createLangfuseSink — robustness & hygiene', () => {
     const { client, calls } = fakeClient();
     const SECRET = 'EVIDENCE-SECRET-abc123';
     createLangfuseSink(client).event(
-      ev('guard_result', 't1', { guard: 'pii', phase: 'input', outcome: 'REJECT', durationMs: 1, evidence: SECRET }),
+      ev('guard_result', 't1', {
+        guard: 'pii',
+        phase: 'input',
+        outcome: 'REJECT',
+        durationMs: 1,
+        evidence: SECRET,
+      }),
     );
     expect(calls).toHaveLength(0);
     expect(JSON.stringify(calls)).not.toContain(SECRET);
@@ -205,5 +238,26 @@ describe('createLangfuseSink — robustness & hygiene', () => {
     const gen = calls.find((c) => c.method === 'generation');
     expect(gen!.body.model).toBeUndefined();
     expect(gen!.body.costDetails).toBeUndefined();
+  });
+
+  it('does not forward stray non-whitelisted fields from a core event (llm_call)', () => {
+    const { client, calls } = fakeClient();
+    const SECRET = 'STRAY-SECRET-ghi789';
+    const sink = createLangfuseSink(client, { now: () => new Date('2026-07-10T00:00:00Z') });
+    sink.event(
+      ev('llm_call', 't1', {
+        model: 'm',
+        inTokens: 1,
+        outTokens: 1,
+        latencyMs: 1,
+        outcome: 'ok',
+        costUsd: 0,
+        secretField: SECRET,
+        rawPrompt: SECRET,
+      }),
+    );
+    // a generation was emitted, but the stray fields are absent from every client call
+    expect(calls.some((c) => c.method === 'generation')).toBe(true);
+    expect(JSON.stringify(calls)).not.toContain(SECRET);
   });
 });
