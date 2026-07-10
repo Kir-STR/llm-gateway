@@ -1,6 +1,6 @@
 {
   "name": "@kir-str/llm-gateway",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Config-driven LLM turn-processing pipeline as a library",
   "license": "MIT",
   "type": "module",
@@ -21,6 +21,10 @@
     "./anthropic": {
       "types": "./dist/anthropic.d.ts",
       "import": "./dist/anthropic.js"
+    },
+    "./langfuse": {
+      "types": "./dist/langfuse.d.ts",
+      "import": "./dist/langfuse.js"
     }
   },
   "scripts": {
@@ -34,14 +38,19 @@
     "yaml": "^2.6.0"
   },
   "peerDependencies": {
-    "@anthropic-ai/sdk": "^0.110.0"
+    "@anthropic-ai/sdk": "^0.110.0",
+    "langfuse": "^3.38.0"
   },
   "peerDependenciesMeta": {
     "@anthropic-ai/sdk": {
       "optional": true
+    },
+    "langfuse": {
+      "optional": true
     }
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.110.0"
+    "@anthropic-ai/sdk": "^0.110.0",
+    "langfuse": "^3.38.0"
   }
 }
