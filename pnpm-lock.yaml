@@ -33,6 +33,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/gateway
 
+  packages/entitlements: {}
+
   packages/gateway:
     dependencies:
       ajv:
