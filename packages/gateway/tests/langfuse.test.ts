@@ -133,3 +133,77 @@ describe('createLangfuseSink — llm_call generation', () => {
     expect(calls.filter((c) => c.method === 'generation')).toHaveLength(2);
   });
 });
+
+describe('createLangfuseSink — robustness & hygiene', () => {
+  it('does not throw and produces no unhandled rejection when a client method rejects', async () => {
+    const client: LangfuseClientLike = {
+      trace() {
+        return {
+          generation: () => Promise.reject(new Error('sink down')),
+          update: () => Promise.reject(new Error('sink down')),
+        };
+      },
+    };
+    const sink = createLangfuseSink(client, { now: () => new Date('2026-07-10T00:00:00Z') });
+    expect(() => {
+      sink.event(ev('turn_started', 't1', { inputLen: 1 }));
+      sink.event(ev('llm_call', 't1', { model: 'm', inTokens: 1, outTokens: 1, latencyMs: 1, outcome: 'ok', costUsd: 0 }));
+      sink.event(ev('turn_completed', 't1', { outcome: 'delivered', flags: [] }));
+    }).not.toThrow();
+    // if callClient failed to attach .catch(), vitest would report an unhandled rejection here
+    await Promise.resolve();
+  });
+
+  it('does not throw when a client method throws synchronously', () => {
+    const client: LangfuseClientLike = {
+      trace() {
+        throw new Error('boom');
+      },
+    };
+    const sink = createLangfuseSink(client);
+    expect(() => sink.event(ev('turn_started', 't1', { inputLen: 1 }))).not.toThrow();
+  });
+
+  it('does not forward guard_result.evidence — the event is ignored, sentinel never appears', () => {
+    const { client, calls } = fakeClient();
+    const SECRET = 'EVIDENCE-SECRET-abc123';
+    createLangfuseSink(client).event(
+      ev('guard_result', 't1', { guard: 'pii', phase: 'input', outcome: 'REJECT', durationMs: 1, evidence: SECRET }),
+    );
+    expect(calls).toHaveLength(0);
+    expect(JSON.stringify(calls)).not.toContain(SECRET);
+  });
+
+  it('does not forward structured_parse.detail — the event is ignored, sentinel never appears', () => {
+    const { client, calls } = fakeClient();
+    const SECRET = 'DETAIL-SECRET-def456';
+    createLangfuseSink(client).event(
+      ev('structured_parse', 't1', { valid: false, attempt: 1, code: 'schema', detail: SECRET }),
+    );
+    expect(calls).toHaveLength(0);
+    expect(JSON.stringify(calls)).not.toContain(SECRET);
+  });
+
+  it('a stream of non-core events between started and completed adds no extra client calls', () => {
+    const { client, calls } = fakeClient();
+    const sink = createLangfuseSink(client);
+    sink.event(ev('turn_started', 't1', { inputLen: 1 }));
+    sink.event(ev('normalize', 't1', { outcome: 'PASS', rulesApplied: [] }));
+    sink.event(ev('route_decision', 't1', { scenario: 'llm', matchedRule: 'r1' }));
+    sink.event(ev('retry', 't1', { trigger: 'structured', attempt: 1, maxAttempts: 2 }));
+    sink.event(ev('turn_completed', 't1', { outcome: 'delivered', flags: [] }));
+    // exactly: 1 trace + 2 updates (started, completed); nothing from the non-core events
+    expect(calls.map((c) => c.method)).toEqual(['trace', 'update', 'update']);
+  });
+
+  it('does not throw on llm_call with missing optional fields', () => {
+    const { client, calls } = fakeClient();
+    const sink = createLangfuseSink(client, { now: () => new Date('2026-07-10T00:00:00Z') });
+    expect(() =>
+      sink.event(ev('llm_call', 't1', { inTokens: 1, outTokens: 1, latencyMs: 1, outcome: 'ok' })),
+    ).not.toThrow();
+    const gen = calls.find((c) => c.method === 'generation');
+    expect(gen!.body.model).toBeUndefined();
+    expect(gen!.body.costDetails).toBeUndefined();
+  });
+});
