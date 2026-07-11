@@ -1,6 +1,6 @@
 {
   "name": "@kir-str/llm-gateway",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Config-driven LLM turn-processing pipeline as a library",
   "license": "MIT",
   "type": "module",

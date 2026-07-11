@@ -9,6 +9,7 @@ import type {
   LlmRequest,
   LlmResponse,
   ScenarioResult,
+  Guard,
 } from './types.js';
 import { LlmCallError } from './types.js';
 import type { GatewayConfig, GuardConfig, ScenarioConfig } from './config-schema.js';
@@ -206,7 +207,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
   function buildEntries(cfgs: GuardConfig[], phase: 'input' | 'output'): GuardEntry[] {
     const entries = cfgs.map((cfg) => {
       const def = DEFAULTS[cfg.name];
-      let guard;
+      let guard: Guard;
       if (cfg.name === 'injection') guard = createInjectionGuard(cfg);
       else if (cfg.name === 'pii') guard = createPiiGuard(cfg);
       else if (cfg.name === 'limits') guard = createLimitsGuard(cfg, { store });
@@ -217,8 +218,34 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
           throw new ConfigError(
             `Unknown guard "${cfg.name}" (${phase}); not built-in and not in deps.guards`,
           );
-        guard = custom;
+        // A3: route overlay is not supported for custom guards (ambiguous semantics).
+        if (cfg.route !== undefined)
+          throw new ConfigError(`Guard "${cfg.name}": "route" is supported only for built-in guards`);
+        // A3: apply cfg.timeout_ms via a delegating wrapper — never mutate the injected guard.
+        if (cfg.timeout_ms === undefined) {
+          guard = custom;
+        } else {
+          guard = {
+            name: custom.name,
+            phase: custom.phase,
+            deterministic: custom.deterministic,
+            timeoutMs: cfg.timeout_ms,
+            run: (ctx) => custom.run(ctx),
+            ...(custom.transforms !== undefined ? { transforms: custom.transforms } : {}),
+          };
+        }
       }
+      // A2: a materialized guard's phase must match the section it is configured under.
+      if (guard.phase !== phase)
+        throw new ConfigError(
+          `Guard "${cfg.name}" has phase "${guard.phase}" but is configured under guards.${phase}`,
+        );
+      // A1: a non-deterministic guard requires a positive effective timeout (closes the
+      // guards-runner truthy-0 hole where timeoutMs:0 silently disables the timer race).
+      if (guard.deterministic === false && (guard.timeoutMs === undefined || guard.timeoutMs < 1))
+        throw new ConfigError(
+          `Guard "${cfg.name}" is non-deterministic and requires a positive timeout_ms`,
+        );
       const onError = (cfg.on_error ?? def?.onError ?? 'degrade') as 'reject' | 'degrade';
       const rejectTemplate =
         (cfg.reject_template as string | undefined) ?? def?.template ?? 'degrade';
@@ -588,7 +615,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
           return finish(
             'delivered',
             kind,
-            c.output?.text ?? '',
+            outAgg.transform ?? c.output?.text ?? '',
             scenarioName,
             mergedFlags,
             undefined,

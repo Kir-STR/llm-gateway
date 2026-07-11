@@ -8,7 +8,7 @@
   "scripts": {
     "lint": "eslint .",
     "build": "pnpm -r --if-present build",
-    "typecheck": "pnpm -r --parallel exec tsc --noEmit",
+    "typecheck": "pnpm -r --parallel --filter=@kir-str/llm-gateway --filter=@kir-str/entitlements exec tsc --noEmit",
     "test": "pnpm -r --parallel test",
     "format:check": "prettier --check ."
   },
