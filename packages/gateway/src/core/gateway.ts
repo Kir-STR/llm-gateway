@@ -684,10 +684,11 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
             );
           }
 
-          // A broken guard (E_GUARD_ERROR) must not trigger main-model regeneration — retry
-          // cannot fix a broken guard. Reject straight to delivery. Only a content-reject
-          // (a working guard rejecting the output) regenerates below.
-          if (outAgg.rejectCode === 'E_GUARD_ERROR') {
+          // A broken guard (E_GUARD_ERROR) or a busted per-request cost cap (cost_cap) must not
+          // trigger main-model regeneration — retry cannot fix a broken guard, and regeneration
+          // cannot lower a cost that is already busted. Reject straight to delivery. Only a
+          // content-reject (a working guard rejecting the output) regenerates below.
+          if (outAgg.rejectCode === 'E_GUARD_ERROR' || outAgg.rejectCode === 'cost_cap') {
             return stub(
               outAgg.rejectTemplate ?? 'policy_reject',
               'rejected',
