@@ -100,3 +100,18 @@ describe('A5: tightened config schema', () => {
     ).not.toThrow();
   });
 });
+
+describe('judge guard config schema', () => {
+  it('rejects a judge guard without model', () => {
+    expect(() => validateConfig({ ...minimal, guards: { output: [{ name: 'judge', criteria: 'x', timeout_ms: 5000 }] } } as never)).toThrow(/model/i);
+  });
+  it('rejects a judge guard without criteria', () => {
+    expect(() => validateConfig({ ...minimal, guards: { output: [{ name: 'judge', model: 'cheap', timeout_ms: 5000 }] } } as never)).toThrow(/criteria/i);
+  });
+  it('rejects an unknown key on a judge guard (closed schema)', () => {
+    expect(() => validateConfig({ ...minimal, guards: { output: [{ name: 'judge', model: 'cheap', criteria: 'x', timeout_ms: 5000, extra: 1 }] } } as never)).toThrow();
+  });
+  it('accepts a well-formed judge guard config schema', () => {
+    expect(() => validateConfig({ ...minimal, guards: { output: [{ name: 'judge', model: 'cheap', criteria: 'x', timeout_ms: 5000, on_error: 'reject' }] } } as never)).not.toThrow();
+  });
+});

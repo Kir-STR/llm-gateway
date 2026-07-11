@@ -141,7 +141,7 @@ Full annotated example (values are neutral placeholders — see
 same config, runnable):
 
 ```yaml
-version: 1.2.0
+version: 1.3.0
 
 llm: # core-managed LLM-call timeout (opt-in); overridable per tier below
   timeout_ms: 30000
@@ -265,6 +265,84 @@ templates: # {{trace_id_short}} is the only variable
   unreachable store is fail-closed (treated like the hard cap).
 - **policy (output):** `regex_deny` (a match is a violation), `regex_require` (no match is a
   violation), `json_schema` (validates `structured`). `hard` -> REJECT, `soft` -> DEGRADE.
+- **judge (output):** LLM-based output judge — evaluates the model's final text against
+  criteria and returns a verdict (pass/degrade/reject). A judge-LLM call is counted as a
+  separate turn in cost accounting (marked `purpose: 'judge'` in telemetry). See [Judge](#judge).
+
+## Judge
+
+The `judge` guard is an LLM-based output evaluator that runs after the main model completes.
+It reads the model's output text (with the turn input as context), calls an LLM with criteria
+you provide, and returns a verdict (pass/degrade/reject). It does not read the structured
+output. Judge calls count toward your cost limits and are tracked separately in telemetry.
+
+Example config (in `guards.output`):
+
+```yaml
+- name: judge
+  on_error: reject # default; break on judge-LLM outage or invalid verdict (fail-closed)
+  model: judge-model # tier from models section
+  criteria: |
+    Evaluate the response for:
+    1. Technical accuracy
+    2. Relevance to the question
+    3. Appropriate tone
+  timeout_ms: 15000 # required — the judge is non-deterministic; a positive timeout is enforced at init
+```
+
+**Verdict schema:** Core-owned, validated by ajv. A judge's response must be valid JSON:
+
+```json
+{
+  "decision": "pass" | "degrade" | "reject",
+  "reason": "..." // optional; not forwarded to user
+}
+```
+
+- `pass` — verdict `outcome: PASS`; turn proceeds to delivery.
+- `degrade` — verdict `outcome: DEGRADE`; turn is delivered with `judge` added to `flags`
+  (user gets the text; the flag notes the downgrade — `degradeReason` is not set).
+- `reject` — verdict `outcome: REJECT`; turn is rejected and a template is returned.
+
+**Availability trade-off:** The default `on_error: reject` implements fail-closed: if the
+judge LLM is unavailable, times out, or returns an invalid verdict, the gateway rejects the
+turn and returns a template error. This is deliberate — a broken judge is treated like a
+failed safety check.
+
+To instead degrade on judge failure, configure `on_error: degrade`:
+
+```yaml
+- name: judge
+  on_error: degrade # allow turns through even if the judge fails
+  model: judge-model
+  criteria: '...'
+```
+
+**Guard-error behavior:** A judge guard error (e.g. invalid JSON, timeout) is handled by
+`on_error`:
+
+- `on_error: reject` (default) → turn is rejected (no retry; a broken judge cannot be fixed
+  by retrying the main model).
+- `on_error: degrade` → turn proceeds (delivered) with `guard_error` added to `flags`.
+
+**Cost accounting:** Judge calls are billed like main-model calls. Each judge invocation:
+
+- Increments the daily cap counter (`per_day.hard_cap_usd`).
+- Is counted in the per-request budget (`per_request.max_cost_usd`); a worst-case pre-check
+  that would exceed the request budget causes the turn to be rejected (fail-closed) before
+  the judge is called.
+- Is recorded in telemetry as `llm_call` with `purpose: 'judge'`.
+
+**Prompt-injection threat model:** The judge receives the model's output as delimited text
+data (framed as unsafe input, not a continuation of the prompt). The core does **not**
+guarantee that the judge LLM is immune to decision-manipulation via the judged text —
+that is, a cleverly crafted model response might influence the judge's decision. This is a
+known limitation: the judge is intended for content policy / accuracy checks, not for
+security properties like decision non-bypassability.
+
+For decisions that must be non-bypassable (e.g. legal compliance, auth), implement them
+outside the judge (in custom guards or your embedding layer) and configure the gateway
+accordingly.
 
 ## Telemetry event dictionary
 

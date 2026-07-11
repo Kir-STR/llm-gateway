@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.0
+
+- Add a built-in LLM output judge guard (`name: 'judge'` in `guards.output`). Config `version`
+  1.2.0 → 1.3.0.
+  - Judge cost is integrated into the turn: it counts toward `usage`/daily cap/`llm_call`
+    telemetry (marked `purpose: 'judge'`), and a worst-case cost-cap pre-check that would bust
+    the per-request cap rejects the turn (fail-closed) instead of skipping the judge.
+  - Verdict is a core-owned schema `{decision: pass|degrade|reject}`; an invalid/missing verdict
+    is a guard error → `on_error` (default `reject`, fail-closed). A judge guard-error rejects the
+    turn without regenerating the main model (retry cannot fix a broken judge).
+  - **Availability trade-off:** with the default `on_error: reject`, a judge-LLM outage makes the
+    gateway reject turns (fail-closed). This is deliberate and configurable via `on_error`.
+  - **Prompt-injection boundary:** the judged output is passed to the judge as delimited data; the
+    core does not guarantee the judge LLM resists decision-manipulation (threat model).
+
 ## 0.5.0
 
 - Guard contract/config hardening (breaking validation). Config `version` 1.1.0 → 1.2.0.

@@ -162,6 +162,21 @@ const schema = {
             },
           },
         },
+        {
+          if: { required: ['name'], properties: { name: { const: 'judge' } } },
+          then: {
+            required: ['name', 'model', 'criteria'],
+            additionalProperties: false,
+            properties: {
+              name: { type: 'string' },
+              model: { type: 'string' },
+              criteria: { type: 'string' },
+              timeout_ms: { type: 'integer', minimum: 1 },
+              on_error: { enum: ['reject', 'degrade'] },
+              reject_template: { type: 'string' },
+            },
+          },
+        },
       ],
     },
   },
