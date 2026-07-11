@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0
+
+- Telemetry hygiene. Config `version` 1.3.0 → 1.4.0.
+  - Per-guard `evidence: 'omit' | 'safe' | 'full'` policy, applied at the telemetry emit
+    boundary. Default: built-in guards `full`, custom guards `safe`. `safe` keeps
+    booleans/numbers/null, redacts strings to `'[omitted:string]'`, preserves object keys, and
+    caps depth/size. Guarantee boundary: `safe` sanitizes values, not object keys.
+  - `pii` is now phase-aware: configured under `guards.output` it masks the delivered
+    `output.text`. NOTE: it does **not** mask `output.structured` (A4 limitation), and — because
+    output guards run in parallel — a `judge` in the same phase still sends the **unmasked**
+    `output.text` to its external LLM.
+  - Leakage tests assert sentinel PII never reaches the jsonl or Langfuse sinks (incl. guard
+    evidence, thrown guard-error messages, `structured_parse.detail`, and retry paths).
+
 ## 0.6.0
 
 - Add a built-in LLM output judge guard (`name: 'judge'` in `guards.output`). Config `version`

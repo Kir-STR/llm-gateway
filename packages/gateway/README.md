@@ -141,7 +141,7 @@ Full annotated example (values are neutral placeholders — see
 same config, runnable):
 
 ```yaml
-version: 1.3.0
+version: 1.4.0
 
 llm: # core-managed LLM-call timeout (opt-in); overridable per tier below
   timeout_ms: 30000
@@ -247,6 +247,30 @@ templates: # {{trace_id_short}} is the only variable
 
 ### Built-in guards
 
+#### Evidence policy
+
+Each guard emits evidence (structured data about why it passed, degraded, or rejected). The
+`evidence` field in telemetry is sanitized according to a per-guard policy:
+
+- **`omit`** — evidence is not emitted at all.
+- **`safe`** — built-in-safe redaction. Keeps `boolean`, `number`, and `null` primitives; redacts
+  strings to `'[omitted:string]'` (never raw PII); preserves object keys (useful for correlating
+  in logs); caps depth to 4 levels and size to 64 leaf values. Guarantee boundary: sanitization
+  redacts values, not keys.
+- **`full`** — evidence is forwarded as-is (use only for trusted internal guards).
+
+**Defaults:** Built-in guards default to `full` (trusted implementations); custom guards default
+to `safe` (assume untrusted inputs). Override per guard in config:
+
+```yaml
+guards:
+  output:
+    - name: policy
+      evidence: safe # optional; defaults to 'full' for built-ins
+```
+
+The sanitized evidence lands in telemetry events (JSONL, Langfuse) at `guard_result.evidence`.
+
 - **normalize (pre-stage):** trims the input; empty input -> `E_NORMALIZE_EMPTY`; length over
   `max_input_chars` -> `E_NORMALIZE_TOO_LONG` (the raw long text is never written to telemetry).
 - **injection:** shared pattern engine (`substring` | `regex`, `case_sensitive`,
@@ -254,10 +278,16 @@ templates: # {{trace_id_short}} is the only variable
   DEGRADE (flag `injection`); evidence is the ids of the patterns that matched, never the input
   text.
 - **pii:** built-in rule sets `ru_phone`, `email`; masks every match (email first, then phone).
-  A hit is _not_ a rejection: the verdict is `outcome: 'PASS'` with a `transform` (masked text)
-  and a `route` from config (short-circuit without calling the LLM). Evidence is boolean
-  presence flags only (e.g. `{ email: true }`), never raw values. `on_error: reject` applies to
-  the guard itself failing, not to a PII hit.
+  Runs in `guards.input` by default (masks before LLM call) or in `guards.output` to mask the
+  delivered text. A hit is _not_ a rejection: the verdict is `outcome: 'PASS'` with a `transform`
+  (masked text) and a `route` from config (e.g., short-circuit). Evidence is boolean presence
+  flags only (e.g. `{ email: true }`), never raw values. `on_error: reject` applies to the guard
+  itself failing, not to a PII hit.
+  - **Output-phase masking:** When configured in `guards.output`, pii masks the delivered
+    `output.text` before user delivery. **NOTE:** It does **not** mask `output.structured`
+    (API limitation). Additionally, because output guards run in parallel, a `judge` guard in
+    the same phase sends the **unmasked** `output.text` to its external LLM (the judge runs
+    concurrently with masking).
 - **limits:** a UTC-rolling daily counter via `LimitsStore`; hitting the hard cap -> REJECT
   (`degradeReason: 'cost_cap'`, stub template `degrade`); crossing the soft threshold emits a
   `cost_cap` event once. Per-request budget is checked before the LLM call (a worst-case
