@@ -24,6 +24,7 @@ import { makeStructuredValidator, type StructuredResult } from './structured.js'
 import { worstCaseCostUsd, actualCostUsd } from './cost.js';
 import { renderNamed } from './templates.js';
 import { findRetryRule, backoffMs } from './retry.js';
+import { callWithTimeout, CoreTimeout } from './call-with-timeout.js';
 import { createInjectionGuard } from '../guards/injection.js';
 import { createPiiGuard } from '../guards/pii.js';
 import { createLimitsGuard } from '../guards/limits.js';
@@ -51,34 +52,6 @@ const utcDate = (d: Date) => d.toISOString().slice(0, 10);
 
 class BudgetExceeded extends Error {}
 class TransportExhausted extends Error {}
-class CoreTimeout extends Error {}
-
-// Bound a single LLM call: pass an AbortSignal for cooperative cancellation AND race the
-// call against a timer, so runTurn is bounded even if the adapter ignores the signal.
-async function callWithTimeout(
-  llm: LlmCaller,
-  req: LlmRequest,
-  timeoutMs: number | undefined,
-): Promise<LlmResponse> {
-  if (timeoutMs === undefined) return llm.call(req);
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      controller.abort();
-      reject(new CoreTimeout());
-    }, timeoutMs);
-  });
-  // Normalize to a promise so even a (contract-violating) synchronous throw from the
-  // adapter becomes a rejection the race handles — never a timer leak or unhandled rejection.
-  const call = (async () => llm.call(req, controller.signal))();
-  call.catch(() => {}); // swallow a late rejection after the race has already timed out
-  try {
-    return await Promise.race([call, timeout]);
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
 
 // Referential integrity of config-declared cross-references — runs at init so runTurn never throws on them.
 function assertReferentialIntegrity(config: GatewayConfig, deps: GatewayDeps): void {
