@@ -597,6 +597,14 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
             c.output?.structured,
           );
         }
+
+        // A broken guard (E_GUARD_ERROR) must not trigger main-model regeneration — retry
+        // cannot fix a broken guard. Reject straight to delivery. Only a content-reject
+        // (a working guard rejecting the output) regenerates below.
+        if (outAgg.rejectCode === 'E_GUARD_ERROR') {
+          return stub(outAgg.rejectTemplate ?? 'policy_reject', 'rejected', scenarioName, mergedFlags);
+        }
+
         // hard output reject → retry the generation with correction (llm only), else stub policy_reject
         if (kind === 'llm' && outAttempt < outMax) {
           outAttempt++;
