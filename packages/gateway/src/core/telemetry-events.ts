@@ -10,6 +10,7 @@ export const EVENTS = {
   costCap: 'cost_cap',
   delivery: 'delivery',
   turnCompleted: 'turn_completed',
+  judgeUsageOrphan: 'judge_usage_orphan',
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];
@@ -70,3 +71,4 @@ export type TurnCompletedData = {
   totalCostUsd: number;
   degradeReason?: string;
 };
+export type JudgeUsageOrphanData = { modelRef: string; inTokens: number; outTokens: number };
