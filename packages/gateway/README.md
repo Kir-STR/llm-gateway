@@ -272,9 +272,9 @@ templates: # {{trace_id_short}} is the only variable
 ## Judge
 
 The `judge` guard is an LLM-based output evaluator that runs after the main model completes.
-It reads the model's text and structured output, calls an LLM with criteria you provide, and
-returns a verdict (pass/degrade/reject). Judge calls count toward your cost limits and are
-tracked separately in telemetry.
+It reads the model's output text (with the turn input as context), calls an LLM with criteria
+you provide, and returns a verdict (pass/degrade/reject). It does not read the structured
+output. Judge calls count toward your cost limits and are tracked separately in telemetry.
 
 Example config (in `guards.output`):
 
@@ -287,7 +287,7 @@ Example config (in `guards.output`):
     1. Technical accuracy
     2. Relevance to the question
     3. Appropriate tone
-  timeout_ms: 15000 # optional; overrides llm.timeout_ms
+  timeout_ms: 15000 # required — the judge is non-deterministic; a positive timeout is enforced at init
 ```
 
 **Verdict schema:** Core-owned, validated by ajv. A judge's response must be valid JSON:
@@ -295,13 +295,13 @@ Example config (in `guards.output`):
 ```json
 {
   "decision": "pass" | "degrade" | "reject",
-  "reasoning": "..." // optional; not forwarded to user
+  "reason": "..." // optional; not forwarded to user
 }
 ```
 
 - `pass` — verdict `outcome: PASS`; turn proceeds to delivery.
-- `degrade` — verdict `outcome: DEGRADE`; turn is delivered with `degradeReason: 'judge'`
-  (user gets the text; telemetry notes the downgrade).
+- `degrade` — verdict `outcome: DEGRADE`; turn is delivered with `judge` added to `flags`
+  (user gets the text; the flag notes the downgrade — `degradeReason` is not set).
 - `reject` — verdict `outcome: REJECT`; turn is rejected and a template is returned.
 
 **Availability trade-off:** The default `on_error: reject` implements fail-closed: if the
@@ -323,7 +323,7 @@ To instead degrade on judge failure, configure `on_error: degrade`:
 
 - `on_error: reject` (default) → turn is rejected (no retry; a broken judge cannot be fixed
   by retrying the main model).
-- `on_error: degrade` → turn proceeds with `degradeReason: 'judge'`.
+- `on_error: degrade` → turn proceeds (delivered) with `guard_error` added to `flags`.
 
 **Cost accounting:** Judge calls are billed like main-model calls. Each judge invocation:
 

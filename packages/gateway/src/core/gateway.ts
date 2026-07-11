@@ -218,7 +218,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
         const tier = config.models[cfg.model as string];
         if (!tier)
           throw new ConfigError(`Judge references unknown model tier "${String(cfg.model)}"`);
-        const timeoutMs = cfg.timeout_ms as number; // schema guarantees integer >= 1 for judge
+        const timeoutMs = cfg.timeout_ms as number; // A1 init-invariant enforces a positive timeout (judge is deterministic:false); the schema leaves timeout_ms optional
         guard = createJudgeGuard(cfg, {
           llm: deps.llm,
           tier,
