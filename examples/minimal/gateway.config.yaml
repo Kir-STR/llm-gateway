@@ -1,4 +1,4 @@
-version: 1.2.0 # 1.2.0: tightened config validation (guard/limits/routing schema, non-deterministic guards require positive timeout_ms)
+version: 1.3.0 # 1.3.0: add built-in output judge guard (LLM-based verdict with cost integration and fail-closed availability)
 
 llm: # core-managed LLM-call timeout (opt-in); overridable per tier below
   timeout_ms: 30000
