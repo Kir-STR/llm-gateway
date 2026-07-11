@@ -539,7 +539,7 @@ Insert at the top of `packages/gateway/CHANGELOG.md` (above `## 0.4.0`):
     now fail at init.
 ```
 
-Add a short note to `packages/gateway/README.md` where config/versioning is discussed (or a "Breaking changes" line): that 0.5.0 tightens config validation (config `version` 1.2.0) and that pre-1.0 minor releases may include breaking changes.
+In `packages/gateway/README.md`: (a) update the config snippet at `README.md:140` from `version: 1.1.0` to `version: 1.2.0` (otherwise the README contradicts the CHANGELOG/spec after the bump); (b) add a short note where config/versioning is discussed (or a "Breaking changes" line): that 0.5.0 tightens config validation (config `version` 1.2.0) and that pre-1.0 minor releases may include breaking changes.
 
 - [ ] **Step 3: Fix the examples workspace-typecheck follow-up**
 
