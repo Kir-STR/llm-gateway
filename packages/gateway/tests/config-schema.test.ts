@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { validateConfig, ConfigError } from '../src/core/config-schema.js';
+import { createGateway } from '../src/index.js';
+import type { GatewayConfig } from '../src/core/config-schema.js';
+import { neutralConfig } from './fixtures/config.js';
+import { createFakeLlm } from './fixtures/fake-llm.js';
 
 const minimal = {
   version: '1.0.0',
@@ -40,5 +44,59 @@ describe('validateConfig', () => {
   });
   it('rejects unknown keys under llm', () => {
     expect(() => validateConfig({ ...minimal, llm: { nope: 1 } })).toThrow(ConfigError);
+  });
+});
+
+function make(mutate: (c: GatewayConfig) => void) {
+  const cfg = structuredClone(neutralConfig) as GatewayConfig;
+  mutate(cfg);
+  const { caller } = createFakeLlm([]);
+  return () => createGateway(cfg, { llm: caller, telemetry: { event() {} }, idGenerator: () => 't' });
+}
+
+describe('A5: tightened config schema', () => {
+  it('rejects a guard element without a name', () => {
+    expect(make((c) => (c.guards!.input as unknown[]).push({ on_error: 'degrade' }))).toThrow(/name/i);
+  });
+
+  it('rejects timeout_ms that is not a positive integer', () => {
+    expect(make((c) => ((c.guards!.input![0] as Record<string, unknown>).timeout_ms = 0))).toThrow();
+    expect(make((c) => ((c.guards!.input![0] as Record<string, unknown>).timeout_ms = 1.5))).toThrow();
+  });
+
+  it("rejects a typo key inside a limits guard's per_day", () => {
+    expect(
+      make((c) => {
+        const limits = c.guards!.input!.find((g) => g.name === 'limits') as Record<string, unknown>;
+        limits.per_day = { hard_cap_uds: 10, soft_warning_usd: 5 };
+      }),
+    ).toThrow();
+  });
+
+  it('accepts a valid limits per_day', () => {
+    expect(
+      make((c) => {
+        const limits = c.guards!.input!.find((g) => g.name === 'limits') as Record<string, unknown>;
+        limits.per_day = { hard_cap_usd: 12, soft_warning_usd: 6 };
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects an unknown key in top-level limits', () => {
+    expect(make((c) => ((c.limits as Record<string, unknown>).per_requst = { max_cost_usd: 1 }))).toThrow();
+  });
+
+  it('rejects an unknown key in normalize (closed object)', () => {
+    expect(make((c) => ((c.normalize as Record<string, unknown>).max_input_charss = 10))).toThrow();
+  });
+
+  it('rejects an unknown key in a routing rule', () => {
+    expect(make((c) => ((c.routing.rules[0] as Record<string, unknown>).scenari = 'main'))).toThrow();
+  });
+
+  it('still accepts arbitrary guard-specific keys on non-limits guards', () => {
+    expect(
+      make((c) => ((c.guards!.input![0] as Record<string, unknown>).patterns = [{ id: 'x', kind: 'substring', pattern: 'y', severity: 'soft' }])),
+    ).not.toThrow();
   });
 });

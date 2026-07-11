@@ -89,14 +89,81 @@ const schema = {
     guards: {
       type: 'object',
       additionalProperties: false,
-      properties: { input: { type: 'array' }, output: { type: 'array' } },
+      properties: {
+        input: { type: 'array', items: { $ref: '#/$defs/guardConfig' } },
+        output: { type: 'array', items: { $ref: '#/$defs/guardConfig' } },
+      },
     },
-    limits: { type: 'object' },
-    routing: { type: 'object', required: ['rules'], properties: { rules: { type: 'array' } } },
+    limits: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        per_request: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { max_cost_usd: { type: 'number' } },
+        },
+        prices: { type: 'object' },
+      },
+    },
+    routing: {
+      type: 'object',
+      required: ['rules'],
+      properties: {
+        rules: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              when: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['flags_any'],
+                properties: { flags_any: { type: 'array', items: { type: 'string' } } },
+              },
+              scenario: { type: 'string' },
+              default: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
     scenarios: { type: 'object' },
     structured_output: { type: 'object' },
     retry: { type: 'array' },
     templates: { type: 'object', additionalProperties: { type: 'string' } },
+  },
+  $defs: {
+    guardConfig: {
+      type: 'object',
+      required: ['name'],
+      // additionalProperties intentionally OPEN: guard-specific keys (patterns, rules, mask, per_day, ...)
+      properties: {
+        name: { type: 'string' },
+        on_error: { enum: ['reject', 'degrade'] },
+        timeout_ms: { type: 'integer', minimum: 1 },
+        reject_template: { type: 'string' },
+        route: { type: 'string' },
+      },
+      allOf: [
+        {
+          if: { required: ['name'], properties: { name: { const: 'limits' } } },
+          then: {
+            properties: {
+              per_day: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  hard_cap_usd: { type: 'number', minimum: 0 },
+                  soft_warning_usd: { type: 'number', minimum: 0 },
+                },
+              },
+            },
+          },
+        },
+      ],
+    },
   },
 } as const;
 
