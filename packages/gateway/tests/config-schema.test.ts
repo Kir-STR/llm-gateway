@@ -115,3 +115,21 @@ describe('judge guard config schema', () => {
     expect(() => validateConfig({ ...minimal, guards: { output: [{ name: 'judge', model: 'cheap', criteria: 'x', timeout_ms: 5000, on_error: 'reject' }] } } as never)).not.toThrow();
   });
 });
+
+describe('C: guard evidence policy config', () => {
+  it('accepts evidence on an open (injection) guard', () => {
+    expect(make((c) => ((c.guards!.input![0] as Record<string, unknown>).evidence = 'safe'))).not.toThrow();
+  });
+  it('accepts evidence on a limits guard', () => {
+    expect(make((c) => {
+      const limits = c.guards!.input!.find((g) => g.name === 'limits') as Record<string, unknown>;
+      limits.evidence = 'omit';
+    })).not.toThrow();
+  });
+  it('accepts evidence on a judge guard (closed schema)', () => {
+    expect(make((c) => c.guards!.output!.push({ name: 'judge', model: 'cheap', criteria: 'x', timeout_ms: 5000, evidence: 'full' } as never))).not.toThrow();
+  });
+  it('rejects an invalid evidence value', () => {
+    expect(make((c) => ((c.guards!.input![0] as Record<string, unknown>).evidence = 'loud'))).toThrow();
+  });
+});
