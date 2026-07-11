@@ -615,7 +615,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
           return finish(
             'delivered',
             kind,
-            c.output?.text ?? '',
+            outAgg.transform ?? c.output?.text ?? '',
             scenarioName,
             mergedFlags,
             undefined,
