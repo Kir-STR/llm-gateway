@@ -1,4 +1,4 @@
-version: 1.1.0 # config format gained optional llm.timeout_ms + models.*.timeout_ms
+version: 1.2.0 # config format gained optional llm.timeout_ms + models.*.timeout_ms
 
 llm: # core-managed LLM-call timeout (opt-in); overridable per tier below
   timeout_ms: 30000

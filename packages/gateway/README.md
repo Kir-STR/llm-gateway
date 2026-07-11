@@ -132,12 +132,16 @@ inside `createGateway` (`additionalProperties: false` — typos don't silently p
 `./node` loader (`loadConfigFile`) reads YAML or JSON from disk based on file extension. The
 `version` field is required and is written into every telemetry event as `configVersion`.
 
+**Breaking changes in pre-1.0.0 releases:** Config format `version` (e.g. `1.2.0`) tracks
+schema changes. Upgrading the package may require updating your config; see
+[CHANGELOG](./CHANGELOG.md) for details.
+
 Full annotated example (values are neutral placeholders — see
 [`examples/minimal/gateway.config.yaml`](../../examples/minimal/gateway.config.yaml) for the
 same config, runnable):
 
 ```yaml
-version: 1.1.0
+version: 1.2.0
 
 llm: # core-managed LLM-call timeout (opt-in); overridable per tier below
   timeout_ms: 30000
