@@ -35,6 +35,7 @@ export type GuardsAggregatedData = {
 };
 export type RouteDecisionData = { scenario: string; matchedRule: string };
 export type LlmCallData = {
+  purpose: 'scenario' | 'judge';
   modelRef: string;
   model: string;
   attempt: number;

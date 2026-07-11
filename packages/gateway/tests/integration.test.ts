@@ -281,4 +281,17 @@ describe('gateway orchestration', () => {
     });
     await expect(gw.runTurn('hello')).resolves.toMatchObject({ outcome: 'failed' });
   });
+
+  it('marks scenario llm_call events with purpose "scenario"', async () => {
+    const events: { event: string; data: Record<string, unknown> }[] = [];
+    const { caller } = createFakeLlm([ok]);
+    const gw = createGateway(neutralConfig, {
+      llm: caller,
+      telemetry: { event: (e) => events.push({ event: e.event, data: e.data }) },
+      idGenerator: () => 't',
+    });
+    await gw.runTurn('question');
+    const llmCall = events.find((e) => e.event === 'llm_call');
+    expect(llmCall?.data.purpose).toBe('scenario');
+  });
 });

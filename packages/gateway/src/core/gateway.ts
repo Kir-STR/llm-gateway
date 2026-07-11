@@ -458,6 +458,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
           const resp = await callWithTimeout(deps.llm, req, timeoutMs);
           const cost = actualCostUsd(model, resp.usage, prices);
           emit(EVENTS.llmCall, {
+            purpose: 'scenario',
             modelRef,
             model,
             attempt: attemptLabelBase + attempt,
@@ -480,6 +481,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
             err instanceof CoreTimeout || (err instanceof LlmCallError && err.code === 'timeout');
           const code = isTimeout ? 'timeout' : err instanceof LlmCallError ? err.code : 'unknown';
           emit(EVENTS.llmCall, {
+            purpose: 'scenario',
             modelRef,
             model,
             attempt: attemptLabelBase + attempt,
