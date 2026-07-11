@@ -45,6 +45,7 @@ const DEFAULTS: Record<string, { onError: 'reject' | 'degrade'; template: string
   pii: { onError: 'reject', template: 'pii_detected' },
   limits: { onError: 'reject', template: 'degrade' },
   policy: { onError: 'degrade', template: 'policy_reject' },
+  judge: { onError: 'reject', template: 'policy_reject' },
 };
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));

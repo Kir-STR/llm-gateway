@@ -16,7 +16,7 @@ function withInputGuard(cfgEntry: Record<string, unknown>): GatewayConfig {
   return cfg;
 }
 const passGuard = (over: Partial<Guard>): Guard => ({
-  name: 'judge',
+  name: 'test',
   phase: 'input',
   deterministic: true,
   run: () => ({ outcome: 'PASS' }),
@@ -25,15 +25,15 @@ const passGuard = (over: Partial<Guard>): Guard => ({
 
 describe('A1: non-deterministic guard requires a positive timeout', () => {
   it('throws when deterministic:false and no timeout', () => {
-    const cfg = withInputGuard({ name: 'judge' });
+    const cfg = withInputGuard({ name: 'test' });
     expect(gw(cfg, [passGuard({ deterministic: false })])).toThrow(/deterministic|timeout/i);
   });
   it('throws when deterministic:false and timeoutMs is 0 (injected, bypasses schema)', () => {
-    const cfg = withInputGuard({ name: 'judge' });
+    const cfg = withInputGuard({ name: 'test' });
     expect(gw(cfg, [passGuard({ deterministic: false, timeoutMs: 0 })])).toThrow(/timeout/i);
   });
   it('accepts deterministic:false with a positive timeoutMs', () => {
-    const cfg = withInputGuard({ name: 'judge' });
+    const cfg = withInputGuard({ name: 'test' });
     expect(gw(cfg, [passGuard({ deterministic: false, timeoutMs: 5000 })])).not.toThrow();
   });
 });
@@ -48,12 +48,12 @@ describe('A2: config section must match the guard phase', () => {
 
 describe('A3: custom-guard config overlay', () => {
   it('throws when a custom guard config carries a route', () => {
-    const cfg = withInputGuard({ name: 'judge', route: 'main' });
+    const cfg = withInputGuard({ name: 'test', route: 'main' });
     expect(gw(cfg, [passGuard({})])).toThrow(/route/i);
   });
   it('applies cfg.timeout_ms to an effective guard WITHOUT mutating the injected guard', () => {
     const injected = passGuard({ deterministic: false });
-    const cfg = withInputGuard({ name: 'judge', timeout_ms: 1234 });
+    const cfg = withInputGuard({ name: 'test', timeout_ms: 1234 });
     expect(gw(cfg, [injected])).not.toThrow(); // effective timeout satisfies A1
     expect(injected.timeoutMs).toBeUndefined(); // injected object left untouched
   });
