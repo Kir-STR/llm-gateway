@@ -212,8 +212,11 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
       const def = DEFAULTS[cfg.name];
       let guard: Guard;
       if (cfg.name === 'injection') guard = createInjectionGuard(cfg);
-      else if (cfg.name === 'pii') guard = createPiiGuard(cfg);
-      else if (cfg.name === 'limits') guard = createLimitsGuard(cfg, { store });
+      else if (cfg.name === 'pii') {
+        if (phase === 'output' && cfg.route !== undefined)
+          throw new ConfigError(`Guard "pii" does not support "route" in the output phase`);
+        guard = createPiiGuard(cfg, phase);
+      } else if (cfg.name === 'limits') guard = createLimitsGuard(cfg, { store });
       else if (cfg.name === 'policy') guard = createPolicyGuard(cfg);
       else if (cfg.name === 'judge') {
         const tier = config.models[cfg.model as string];
@@ -267,7 +270,8 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
       const rejectTemplate =
         (cfg.reject_template as string | undefined) ?? def?.template ?? 'degrade';
       const evidencePolicy: EvidencePolicy =
-        (cfg.evidence as EvidencePolicy | undefined) ?? (DEFAULTS[cfg.name] !== undefined ? 'full' : 'safe');
+        (cfg.evidence as EvidencePolicy | undefined) ??
+        (DEFAULTS[cfg.name] !== undefined ? 'full' : 'safe');
       return { guard, onError, rejectTemplate, evidencePolicy };
     });
     const transformers = entries.filter((e) => e.guard.transforms === true);

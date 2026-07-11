@@ -4,18 +4,18 @@ import type { GuardConfig } from '../core/config-schema.js';
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const RU_PHONE_RE = /(?:\+7|8)[\s\-()]*\d{3}[\s\-()]*\d{3}[\s\-()]*\d{2}[\s\-()]*\d{2}/g;
 
-export function createPiiGuard(cfg: GuardConfig): Guard {
+export function createPiiGuard(cfg: GuardConfig, phase: 'input' | 'output'): Guard {
   const rules = (cfg.rules as string[] | undefined) ?? ['ru_phone', 'email'];
   const mask = (cfg.mask as Record<string, string> | undefined) ?? {};
   const route = cfg.route as string | undefined;
   return {
     name: cfg.name,
-    phase: 'input',
+    phase,
     deterministic: true,
     transforms: true,
     ...(cfg.timeout_ms !== undefined ? { timeoutMs: cfg.timeout_ms } : {}),
     run(ctx): Verdict {
-      let text = ctx.input.text;
+      let text = phase === 'output' ? (ctx.output?.text ?? '') : ctx.input.text;
       let email = false;
       let phone = false;
       EMAIL_RE.lastIndex = 0;
@@ -31,7 +31,7 @@ export function createPiiGuard(cfg: GuardConfig): Guard {
       const evidence = { email, phone };
       if (!email && !phone) return { outcome: 'PASS', evidence };
       const verdict: Verdict = { outcome: 'PASS', transform: text, evidence };
-      if (route) verdict.route = route;
+      if (route && phase === 'input') verdict.route = route; // route is only meaningful pre-LLM
       return verdict;
     },
   };
