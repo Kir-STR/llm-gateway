@@ -39,9 +39,9 @@ describe('A1: non-deterministic guard requires a positive timeout', () => {
 });
 
 describe('A2: config section must match the guard phase', () => {
-  it('throws when a built-in input guard (pii) is placed in guards.output', () => {
+  it('throws when a built-in input guard (injection) is placed in guards.output', () => {
     const cfg = structuredClone(neutralConfig) as GatewayConfig;
-    cfg.guards!.output!.push({ name: 'pii' } as never);
+    cfg.guards!.output!.push({ name: 'injection' } as never);
     expect(gw(cfg)).toThrow(/phase/i);
   });
 });

@@ -1,6 +1,12 @@
 import type { Guard, Verdict, TurnContext } from './types.js';
+import type { EvidencePolicy } from './sanitize-evidence.js';
 
-export type GuardEntry = { guard: Guard; onError: 'reject' | 'degrade'; rejectTemplate: string };
+export type GuardEntry = {
+  guard: Guard;
+  onError: 'reject' | 'degrade';
+  rejectTemplate: string;
+  evidencePolicy: EvidencePolicy;
+};
 export type GuardRunOutcome = {
   name: string;
   phase: 'input' | 'output';
@@ -9,6 +15,7 @@ export type GuardRunOutcome = {
   timedOut: boolean;
   errored: boolean;
   rejectTemplate: string;
+  evidencePolicy: EvidencePolicy;
 };
 
 class TimeoutError extends Error {}
@@ -43,6 +50,7 @@ async function runOne(entry: GuardEntry, ctx: TurnContext): Promise<GuardRunOutc
       timedOut: false,
       errored: false,
       rejectTemplate: entry.rejectTemplate,
+      evidencePolicy: entry.evidencePolicy,
     };
   } catch (err) {
     const timedOut = err instanceof TimeoutError;
@@ -55,6 +63,7 @@ async function runOne(entry: GuardEntry, ctx: TurnContext): Promise<GuardRunOutc
       timedOut,
       errored: true,
       rejectTemplate: entry.rejectTemplate,
+      evidencePolicy: entry.evidencePolicy,
     };
   }
 }

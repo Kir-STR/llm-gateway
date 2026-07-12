@@ -145,6 +145,7 @@ const schema = {
         timeout_ms: { type: 'integer', minimum: 1 },
         reject_template: { type: 'string' },
         route: { type: 'string' },
+        evidence: { enum: ['omit', 'safe', 'full'] },
       },
       allOf: [
         {
@@ -174,6 +175,7 @@ const schema = {
               timeout_ms: { type: 'integer', minimum: 1 },
               on_error: { enum: ['reject', 'degrade'] },
               reject_template: { type: 'string' },
+              evidence: { enum: ['omit', 'safe', 'full'] },
             },
           },
         },

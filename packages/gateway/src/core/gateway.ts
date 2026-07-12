@@ -17,6 +17,7 @@ import { EVENTS } from './telemetry-events.js';
 import { makeEmitter } from './emit.js';
 import { normalize } from './normalize.js';
 import { runGuards, type GuardEntry } from './guards-runner.js';
+import { sanitizeEvidence, type EvidencePolicy } from './sanitize-evidence.js';
 import { aggregateInput } from './aggregate.js';
 import { selectScenario } from './router.js';
 import { makeStructuredValidator, type StructuredResult } from './structured.js';
@@ -211,8 +212,11 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
       const def = DEFAULTS[cfg.name];
       let guard: Guard;
       if (cfg.name === 'injection') guard = createInjectionGuard(cfg);
-      else if (cfg.name === 'pii') guard = createPiiGuard(cfg);
-      else if (cfg.name === 'limits') guard = createLimitsGuard(cfg, { store });
+      else if (cfg.name === 'pii') {
+        if (phase === 'output' && cfg.route !== undefined)
+          throw new ConfigError(`Guard "pii" does not support "route" in the output phase`);
+        guard = createPiiGuard(cfg, phase);
+      } else if (cfg.name === 'limits') guard = createLimitsGuard(cfg, { store });
       else if (cfg.name === 'policy') guard = createPolicyGuard(cfg);
       else if (cfg.name === 'judge') {
         const tier = config.models[cfg.model as string];
@@ -265,7 +269,10 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
       const onError = (cfg.on_error ?? def?.onError ?? 'degrade') as 'reject' | 'degrade';
       const rejectTemplate =
         (cfg.reject_template as string | undefined) ?? def?.template ?? 'degrade';
-      return { guard, onError, rejectTemplate };
+      const evidencePolicy: EvidencePolicy =
+        (cfg.evidence as EvidencePolicy | undefined) ??
+        (DEFAULTS[cfg.name] !== undefined ? 'full' : 'safe');
+      return { guard, onError, rejectTemplate, evidencePolicy };
     });
     const transformers = entries.filter((e) => e.guard.transforms === true);
     if (transformers.length > 1)
@@ -439,7 +446,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
           durationMs: r.durationMs,
           timedOut: r.timedOut,
           errored: r.errored,
-          evidence: r.verdict.evidence,
+          evidence: sanitizeEvidence(r.verdict.evidence, r.evidencePolicy),
         });
       }
       const agg = aggregateInput(
@@ -660,7 +667,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps): Gateway
               durationMs: r.durationMs,
               timedOut: r.timedOut,
               errored: r.errored,
-              evidence: r.verdict.evidence,
+              evidence: sanitizeEvidence(r.verdict.evidence, r.evidencePolicy),
             });
           }
           const outAgg = aggregateInput(

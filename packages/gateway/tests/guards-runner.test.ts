@@ -27,7 +27,10 @@ const boom: Guard = {
 
 describe('runGuards', () => {
   it('collects verdicts and marks fast guards clean', async () => {
-    const [r] = await runGuards([{ guard: pass, onError: 'reject', rejectTemplate: 't' }], ctx);
+    const [r] = await runGuards(
+      [{ guard: pass, onError: 'reject', rejectTemplate: 't', evidencePolicy: 'full' }],
+      ctx,
+    );
     expect(r).toMatchObject({
       name: 'ok',
       verdict: { outcome: 'PASS' },
@@ -36,12 +39,18 @@ describe('runGuards', () => {
     });
   });
   it('applies on_error=reject to a timed-out guard', async () => {
-    const [r] = await runGuards([{ guard: slow, onError: 'reject', rejectTemplate: 't' }], ctx);
+    const [r] = await runGuards(
+      [{ guard: slow, onError: 'reject', rejectTemplate: 't', evidencePolicy: 'full' }],
+      ctx,
+    );
     expect(r!.verdict).toEqual({ outcome: 'REJECT', code: 'E_GUARD_ERROR' });
     expect(r!.timedOut).toBe(true);
   });
   it('applies on_error=degrade to a throwing guard', async () => {
-    const [r] = await runGuards([{ guard: boom, onError: 'degrade', rejectTemplate: 't' }], ctx);
+    const [r] = await runGuards(
+      [{ guard: boom, onError: 'degrade', rejectTemplate: 't', evidencePolicy: 'full' }],
+      ctx,
+    );
     expect(r!.verdict).toEqual({ outcome: 'DEGRADE', code: 'E_GUARD_ERROR' });
     expect(r!.errored).toBe(true);
   });

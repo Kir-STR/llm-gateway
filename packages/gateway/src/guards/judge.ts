@@ -73,8 +73,8 @@ export function createJudgeGuard(cfg: GuardConfig, deps: JudgeDeps): Guard {
       if (!parsed.valid) throw new Error('judge returned an invalid verdict'); // → guard error → on_error
 
       const decision = (parsed.value as { decision: 'pass' | 'degrade' | 'reject' }).decision;
-      // `reason` is intentionally NOT forwarded (evidence hygiene). Increment C introduces the
-      // evidence policy; until then only the decision leaves the judge.
+      // `reason` is model-generated free text and is intentionally NOT forwarded to evidence or
+      // telemetry — only the decision leaves the judge.
       const evidence = { decision };
       if (decision === 'reject') return { outcome: 'REJECT', evidence };
       if (decision === 'degrade') return { outcome: 'DEGRADE', evidence };

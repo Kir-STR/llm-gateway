@@ -1,4 +1,4 @@
-version: 1.3.0 # 1.3.0: add built-in output judge guard (LLM-based verdict with cost integration and fail-closed availability)
+version: 1.4.0 # 1.4.0: evidence policy (per-guard control of telemetry sanitization) and phase-aware output pii masking
 
 llm: # core-managed LLM-call timeout (opt-in); overridable per tier below
   timeout_ms: 30000
