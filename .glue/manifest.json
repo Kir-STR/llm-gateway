@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "2",
+  "deliveryId": "2026-07-07T11:50:42.235Z",
+  "completedAt": "2026-07-07T11:50:42.235Z",
+  "engines": [
+    "claude",
+    "codex",
+    "gemini"
+  ],
+  "modules": [
+    {
+      "id": "operator-gate",
+      "decision": "added-from-template",
+      "targetPaths": [
+        ".claude/rules/operator-gate.md"
+      ],
+      "referenceTemplate": "operator-gate.md"
+    },
+    {
+      "id": "secret-hygiene",
+      "decision": "added-from-template",
+      "targetPaths": [
+        ".claude/rules/secret-hygiene.md"
+      ],
+      "referenceTemplate": "secret-hygiene.md"
+    },
+    {
+      "id": "architectural-invariants",
+      "decision": "tailored-from-template",
+      "targetPaths": [
+        ".claude/rules/architectural-invariants.md"
+      ],
+      "referenceTemplate": "architectural-invariants.md"
+    },
+    {
+      "id": "versioning",
+      "decision": "tailored-from-template",
+      "targetPaths": [
+        ".claude/rules/versioning.md"
+      ],
+      "referenceTemplate": "versioning.md"
+    },
+    {
+      "id": "glossary",
+      "decision": "tailored-from-template",
+      "targetPaths": [
+        ".claude/rules/glossary.md"
+      ],
+      "referenceTemplate": "glossary.md"
+    }
+  ],
+  "status": "complete",
+  "files": [
+    {
+      "producerPack": "glue",
+      "packVersion": "0.4.3",
+      "sourceTemplate": null,
+      "targetPath": ".claude/rules/architectural-invariants.md",
+      "writtenHash": "7ff6d048d0eca534b27699602a52dfbdfb5bef03695357eb468e557299bf0789"
+    },
+    {
+      "producerPack": "glue",
+      "packVersion": "0.4.3",
+      "sourceTemplate": null,
+      "targetPath": ".claude/rules/versioning.md",
+      "writtenHash": "4c3fab0c27d3aa33de571141d20bbda4105ff972a4d2ae94d5a05bc2d6c5d764"
+    },
+    {
+      "producerPack": "glue",
+      "packVersion": "0.4.3",
+      "sourceTemplate": null,
+      "targetPath": ".claude/rules/glossary.md",
+      "writtenHash": "a4d86c4c98721c65f0cad8910f0d57d59eab98e430bd0b8556d218d23300bd56"
+    },
+    {
+      "producerPack": "glue",
+      "packVersion": "0.4.3",
+      "sourceTemplate": "operator-gate.md",
+      "targetPath": ".claude/rules/operator-gate.md",
+      "writtenHash": "a9c16c539f391878619ff5c47ecd58a926c8d5eab233c64e2c7bcc61e511949f"
+    },
+    {
+      "producerPack": "glue",
+      "packVersion": "0.4.3",
+      "sourceTemplate": "secret-hygiene.md",
+      "targetPath": ".claude/rules/secret-hygiene.md",
+      "writtenHash": "cf52ff219e6554b321c0bec68fdc9c0c1d6c0f1bbbab366f3584ee0da72f500c"
+    },
+    {
+      "producerPack": "glue",
+      "packVersion": "0.4.3",
+      "sourceTemplate": "CLAUDE.md.tmpl",
+      "targetPath": "CLAUDE.md",
+      "writtenHash": "d10800f23acd8f4711630f034b1a84c94ab58057d08690f724d77829033c7d19"
+    },
+    {
+      "producerPack": "glue",
+      "packVersion": "0.4.3",
+      "sourceTemplate": "AGENTS.md.tmpl",
+      "targetPath": "AGENTS.md",
+      "writtenHash": "1e550d9e19fe0dde13b8dd9606893db40cae7fbb3a6d8df0fd36db5162866807"
+    },
+    {
+      "producerPack": "glue",
+      "packVersion": "0.4.3",
+      "sourceTemplate": "GEMINI.md.tmpl",
+      "targetPath": "GEMINI.md",
+      "writtenHash": "c977568d36f3028c5fbd67e106c5ba86c2cc069c7f68fd192bbafbb0e6028a5e"
+    }
+  ]
+}
